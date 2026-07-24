@@ -1,0 +1,9 @@
+<!-- Claw mark, matching the ClawMark component in src/ClawMark.tsx. The viewBox
+     is cropped to the artwork so the slashes fill the tab icon at 16px. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="7 0 33 42">
+  <g fill="#0085ca">
+    <path d="M10 4c3 8 3 20 1 34-3-13-4-25-1-34z" />
+    <path d="M23 2c3 9 3 22 1 38-3-14-4-27-1-38z" />
+    <path d="M36 4c3 8 3 20 1 34-3-13-4-25-1-34z" />
+  </g>
+</svg>

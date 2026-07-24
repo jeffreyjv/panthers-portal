@@ -1,0 +1,1223 @@
+:root,
+:root[data-theme="dark"] {
+  --blue: #0085ca;
+  --blue-bright: #16a3ea;
+  --black: #0b0e11;
+  --panel: #12171d;
+  --panel-2: #171e26;
+  --silver: #a5acaf;
+  --silver-dim: #6b7480;
+  --ink: #eef2f5;
+  --border: #232c36;
+  --blue-glow: rgba(0, 133, 202, 0.35);
+  --espn: #e2685a;
+
+  --page-wash: rgba(0, 133, 202, 0.14);
+  --masthead-bg: rgba(11, 14, 17, 0.82);
+  --shadow-card: 0 18px 34px rgba(0, 0, 0, 0.5);
+  --shadow-feature: 0 24px 50px rgba(0, 0, 0, 0.55);
+  --shimmer: rgba(255, 255, 255, 0.06);
+  --claw-ghost: rgba(255, 255, 255, 0.14);
+
+  --radius: 14px;
+}
+
+:root[data-theme="light"] {
+  --blue: #0085ca;
+  --blue-bright: #0069a3;
+  --black: #eef1f5;
+  --panel: #ffffff;
+  --panel-2: #e4e9ef;
+  --silver: #4c5763;
+  --silver-dim: #6f7a86;
+  --ink: #0b0e11;
+  --border: #d5dbe3;
+  --blue-glow: rgba(0, 133, 202, 0.28);
+  --espn: #b8352a;
+
+  --page-wash: rgba(0, 133, 202, 0.16);
+  --masthead-bg: rgba(255, 255, 255, 0.85);
+  --shadow-card: 0 18px 34px rgba(15, 30, 45, 0.14);
+  --shadow-feature: 0 24px 50px rgba(15, 30, 45, 0.18);
+  --shimmer: rgba(255, 255, 255, 0.75);
+  --claw-ghost: rgba(11, 14, 17, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Always reserve the scrollbar gutter. Without this, switching from a long
+   tab to a short one removes the scrollbar and the whole page jumps sideways. */
+html {
+  scrollbar-gutter: stable;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 50% -10%, var(--page-wash), transparent 60%),
+    var(--black);
+  color: var(--ink);
+  font-family: "Barlow", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- Masthead ---------- */
+.masthead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--masthead-bg);
+  backdrop-filter: saturate(140%) blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.masthead::after {
+  content: "";
+  display: block;
+  height: 3px;
+  background: linear-gradient(90deg, var(--blue), var(--blue-bright), transparent);
+}
+
+.masthead-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.brand-claw {
+  width: 30px;
+  height: 30px;
+  color: var(--blue);
+  transform: rotate(-8deg);
+  filter: drop-shadow(0 0 10px var(--blue-glow));
+}
+
+.brand-team {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800;
+  font-size: 1.35rem;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.masthead-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+/* ---------- Kickoff countdown ---------- */
+.countdown {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-2);
+  white-space: nowrap;
+}
+
+.countdown-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--silver);
+}
+
+.countdown-label small {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: var(--blue-bright);
+}
+
+.countdown-clock {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.countdown-seg {
+  display: flex;
+  align-items: baseline;
+  gap: 0.05rem;
+}
+
+.countdown-num {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800;
+  font-size: 1.15rem;
+  line-height: 1;
+  /* Keeps the digits from jittering as the seconds roll over. */
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.countdown-unit {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--silver);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Theme toggle ---------- */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--silver);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.theme-toggle:hover {
+  color: var(--blue-bright);
+  border-color: var(--blue);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.theme-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---------- Tabs (inline in the masthead) ---------- */
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  flex: none;
+  padding: 0.42rem 0.8rem;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--silver);
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.tab:hover {
+  color: var(--ink);
+  background: var(--panel-2);
+}
+
+.tab.is-active {
+  color: #fff;
+  background: var(--blue);
+  box-shadow: 0 4px 14px var(--blue-glow);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* ---------- Layout ---------- */
+.main {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+  flex: 1;
+  /* Keeps the footer from riding up when a tab's content is short. */
+  min-height: 70vh;
+}
+
+/* Re-keyed on every tab change, so the animation replays on switch. */
+.tab-panel {
+  animation: panel-in 0.32s cubic-bezier(0.22, 0.8, 0.3, 1) both;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-panel {
+    animation: none;
+  }
+  .skeleton::after {
+    animation: none;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------- Feature ---------- */
+.feature {
+  position: relative;
+  display: block;
+  border-radius: var(--radius);
+  overflow: hidden;
+  min-height: 420px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  isolation: isolate;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.feature:hover {
+  transform: translateY(-3px);
+  border-color: var(--blue);
+  box-shadow: var(--shadow-feature), 0 0 0 1px var(--blue-glow);
+}
+
+.feature-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -2;
+  transition: transform 0.5s ease;
+}
+
+.feature:hover .feature-media {
+  transform: scale(1.05);
+}
+
+.feature-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(180deg, rgba(11, 14, 17, 0.1) 0%, rgba(11, 14, 17, 0.35) 45%, rgba(11, 14, 17, 0.96) 100%),
+    linear-gradient(90deg, rgba(0, 133, 202, 0.25), transparent 55%);
+}
+
+/* The scrim stays dark over the artwork in both themes, so this text is
+   always light regardless of the active theme. */
+.feature-body {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 2rem clamp(1.25rem, 4vw, 2.75rem);
+  max-width: 780px;
+  color: #f4f7fa;
+}
+
+.feature-title {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.9rem, 4.5vw, 3.1rem);
+  line-height: 1.02;
+  letter-spacing: -0.005em;
+  margin: 0.6rem 0 0.7rem;
+  text-wrap: balance;
+}
+
+.feature-summary {
+  color: rgba(244, 247, 250, 0.82);
+  font-size: 1.05rem;
+  line-height: 1.5;
+  margin: 0 0 0.9rem;
+  max-width: 62ch;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---------- Reader ---------- */
+.reader {
+  max-width: 720px;
+  margin: 0 auto;
+  animation: panel-in 0.32s cubic-bezier(0.22, 0.8, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader {
+    animation: none;
+  }
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1.5rem;
+  padding: 0.4rem 0.75rem 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--silver);
+  font-family: "Barlow", sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.back-link:hover {
+  color: var(--blue-bright);
+  border-color: var(--blue);
+}
+
+.back-link:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.reader-hero {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+
+.reader-title {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.9rem, 4.5vw, 2.8rem);
+  line-height: 1.05;
+  margin: 0 0 0.75rem;
+  text-wrap: balance;
+}
+
+.reader-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.reader-meta .meta {
+  margin-top: 0;
+}
+
+.reader-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  margin-top: 1.75rem;
+  font-size: 1.08rem;
+  line-height: 1.68;
+  color: var(--ink);
+}
+
+.reader-body p {
+  margin: 0;
+}
+
+/* The first paragraph reads as a standfirst. */
+.reader-body p:first-child {
+  font-size: 1.18rem;
+  color: var(--ink);
+}
+
+.reader-body .skeleton-line {
+  height: 16px;
+}
+
+.reader-source {
+  margin: 2.25rem 0 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--silver-dim);
+}
+
+.reader-source a,
+.reader .notice a {
+  color: var(--blue-bright);
+  font-weight: 600;
+}
+
+.reader-source a:hover,
+.reader .notice a:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Section head ---------- */
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 2.75rem 0 1.25rem;
+}
+
+.main > :first-child > .section-head:first-child,
+.main > .section-head:first-child {
+  margin-top: 0;
+}
+
+.section-title {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 1.5rem;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.section-title::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 1.05em;
+  background: var(--blue);
+  margin-right: 0.7rem;
+  vertical-align: -0.14em;
+  border-radius: 2px;
+}
+
+.section-badge {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  color: var(--silver);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  white-space: nowrap;
+}
+
+.section-rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--border), transparent);
+}
+
+/* ---------- Grid ---------- */
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  border-color: var(--blue);
+  box-shadow: var(--shadow-card), 0 0 0 1px var(--blue-glow);
+}
+
+.card-media-wrap {
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+
+.card-media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.card:hover .card-media {
+  transform: scale(1.06);
+}
+
+.card-body {
+  padding: 1.05rem 1.1rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  flex: 1;
+}
+
+.card-title {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 1.28rem;
+  line-height: 1.12;
+  margin: 0;
+}
+
+.card:hover .card-title {
+  color: var(--blue-bright);
+}
+
+.card-summary {
+  color: var(--silver);
+  font-size: 0.92rem;
+  line-height: 1.45;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.meta {
+  font-size: 0.72rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--silver-dim);
+  font-weight: 600;
+  margin-top: auto;
+}
+
+.feature-body .meta {
+  color: rgba(244, 247, 250, 0.72);
+}
+
+/* Source + timestamp footer. Stays on one line; the source keeps its
+   full width and the timestamp takes what's left. */
+.byline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.byline > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source {
+  flex: none;
+  padding: 0.16rem 0.42rem;
+  border-radius: 3px;
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  border: 1px solid currentColor;
+  opacity: 0.9;
+}
+
+.source-panthers {
+  color: var(--blue);
+}
+
+.source-espn {
+  color: var(--espn);
+}
+
+.feature-body .source {
+  color: #f4f7fa;
+  border-color: rgba(244, 247, 250, 0.55);
+}
+
+.tag {
+  display: inline-block;
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--blue);
+  padding: 0.28rem 0.7rem;
+  border-radius: 4px;
+  box-shadow: 0 4px 14px var(--blue-glow);
+}
+
+/* ---------- Image fallback ---------- */
+.thumb-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(120% 120% at 30% 20%, rgba(0, 133, 202, 0.4), transparent 55%),
+    var(--panel-2);
+}
+
+.thumb-fallback-claw {
+  width: 40%;
+  max-width: 130px;
+  color: var(--claw-ghost);
+  transform: rotate(-8deg);
+}
+
+.feature-media.thumb-fallback {
+  position: absolute;
+  inset: 0;
+}
+
+/* ---------- Notice (error / empty) ---------- */
+.notice {
+  text-align: center;
+  padding: 5rem 1rem;
+  color: var(--silver);
+}
+
+.notice-claw {
+  width: 56px;
+  height: 56px;
+  color: var(--blue);
+  opacity: 0.7;
+  transform: rotate(-8deg);
+  margin-bottom: 0.5rem;
+}
+
+.notice h2 {
+  font-family: "Barlow Condensed", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 1.7rem;
+  margin: 0.4rem 0 0.3rem;
+  color: var(--ink);
+}
+
+.notice p {
+  margin: 0;
+}
+
+/* ---------- Skeletons ---------- */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--panel-2);
+  border-radius: 6px;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--shimmer),
+    transparent
+  );
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+.feature-skeleton {
+  min-height: 420px;
+  padding: 0;
+}
+
+.feature-skeleton .skeleton-media {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  border-radius: 0;
+}
+
+.card-skeleton:hover {
+  transform: none;
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+.skeleton-media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 0;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 4px;
+}
+
+.skeleton-line.long { width: 90%; }
+.skeleton-line.short { width: 45%; }
+
+/* ---------- Schedule ---------- */
+.game-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.game {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1.1rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.game:hover {
+  border-color: var(--blue);
+  transform: translateX(3px);
+}
+
+.game-week {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.game-week small {
+  font-family: "Barlow", sans-serif;
+  font-weight: 600;
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--silver-dim);
+  margin-bottom: 3px;
+}
+
+.game-main {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.game-logo {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  flex: none;
+}
+
+.game-side {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--silver-dim);
+}
+
+.game-side.is-home {
+  color: var(--blue-bright);
+}
+
+.game-opponent {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 1.3rem;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-when {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--silver);
+  white-space: nowrap;
+}
+
+.game-when small {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--silver-dim);
+  margin-top: 2px;
+}
+
+.game-result {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800;
+  font-size: 1.15rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.outcome-w { color: #21d07a; }
+.outcome-l { color: #e5645f; }
+.outcome-t { color: var(--silver); }
+
+.game-bye {
+  background: var(--panel-2);
+  border-style: dashed;
+}
+
+.game-bye:hover {
+  border-color: var(--border);
+  transform: none;
+}
+
+.game-bye .game-opponent {
+  color: var(--silver-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 1.05rem;
+}
+
+.game-skeleton {
+  align-items: center;
+}
+
+.game-skeleton:hover {
+  border-color: var(--border);
+  transform: none;
+}
+
+/* ---------- Roster controls ---------- */
+.roster-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.search-wrap {
+  display: flex;
+}
+
+.roster-search {
+  width: 100%;
+  max-width: 420px;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--ink);
+  font-family: "Barlow", sans-serif;
+  font-size: 0.95rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.roster-search::placeholder {
+  color: var(--silver-dim);
+}
+
+.roster-search:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-glow);
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chip {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--silver);
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.chip:hover {
+  color: var(--ink);
+  border-color: var(--blue);
+}
+
+.chip.is-on {
+  color: #fff;
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.chip-clear {
+  color: var(--silver-dim);
+  border-style: dashed;
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* ---------- Roster ---------- */
+.roster {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+}
+
+.player {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.85rem 1rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.player:hover {
+  transform: translateY(-3px);
+  border-color: var(--blue);
+  box-shadow: var(--shadow-card), 0 0 0 1px var(--blue-glow);
+}
+
+.player-shot {
+  flex: none;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  object-fit: cover;
+  /* Headshots are shot from the chest up; bias the crop toward the face. */
+  object-position: top center;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+
+.player-shot-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.player-shot-claw {
+  width: 40%;
+  color: var(--claw-ghost);
+  transform: rotate(-8deg);
+}
+
+.player-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.player-tags {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.player-number {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--blue-bright);
+}
+
+.player-position {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--silver);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  cursor: default;
+}
+
+/* The specific slot a starter holds, e.g. LDE. */
+.player-slot {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--blue);
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+}
+
+.player-name {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 1.2rem;
+  line-height: 1.1;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player .meta {
+  margin-top: 0;
+}
+
+/* ---------- Footer ---------- */
+.footer {
+  border-top: 1px solid var(--border);
+  padding: 1.5rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  color: var(--silver-dim);
+  font-size: 0.85rem;
+}
+
+.footer-claw {
+  width: 18px;
+  height: 18px;
+  color: var(--blue);
+  transform: rotate(-8deg);
+}
+
+.footer a {
+  color: var(--blue-bright);
+  font-weight: 600;
+}
+
+.footer a:hover {
+  text-decoration: underline;
+}
+
+/* Below this the brand and the tabs stop fitting on one line, so the tab row
+   wraps underneath and spans the full width. */
+@media (max-width: 700px) {
+  .masthead-inner {
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+  .masthead-tools {
+    order: 1;
+    width: 100%;
+    justify-content: space-between;
+  }
+  .tabs {
+    margin-left: -0.35rem;
+  }
+  /* Shares the top row with the brand once the tabs drop below. */
+  .countdown {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 420px) {
+  /* Only the clock still fits alongside the wordmark. */
+  .countdown-label {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .feature {
+    min-height: 340px;
+  }
+  .tab {
+    padding: 0.4rem 0.65rem;
+    font-size: 0.98rem;
+  }
+  .feature-body {
+    padding: 1.4rem;
+  }
+  .game {
+    grid-template-columns: 48px 1fr auto;
+    gap: 0.7rem;
+    padding: 0.75rem 0.85rem;
+  }
+  .game-opponent {
+    font-size: 1.1rem;
+  }
+}
