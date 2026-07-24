@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Node — the image builds its own; copying host-built output would defeat that
+node_modules/
+frontend/dist/
+
+# Env
+.env
+
+# Repo / editor / OS
+.git/
+.gitignore
+.claude/
+.DS_Store
+.vscode/
+.idea/
+README.md

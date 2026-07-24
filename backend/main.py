@@ -9,10 +9,13 @@ import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable, Dict, Hashable, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from models import Article, ArticleContent, Game, Player
 from sources import (
@@ -41,6 +44,11 @@ CONTENT_CACHE_MAX_ENTRIES = int(os.getenv("CONTENT_CACHE_MAX_ENTRIES", "200"))
 FRONTEND_ORIGINS = os.getenv(
     "FRONTEND_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
 ).split(",")
+# Built frontend, served from this app in production so the API is same-origin.
+# Resolved off this file rather than the cwd so it holds wherever uvicorn starts.
+FRONTEND_DIST = Path(
+    os.getenv("FRONTEND_DIST", Path(__file__).resolve().parent.parent / "frontend" / "dist")
+).resolve()
 
 
 # --- Read-through cache ------------------------------------------------------
@@ -258,3 +266,35 @@ def health() -> dict:
         "cached_players": _roster_cache.size(current_season()),
         "cached_article_bodies": _content_cache.entry_count(),
     }
+
+
+# --- Frontend ----------------------------------------------------------------
+# Registered last so the catch-all below can never shadow an /api route. Skipped
+# entirely when there's no build, which is the normal case in dev: there Vite
+# serves the app and proxies /api here.
+if FRONTEND_DIST.is_dir():
+    app.mount(
+        "/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets"
+    )
+
+    @app.get("/{full_path:path}")
+    def spa(full_path: str) -> FileResponse:
+        """Serve a built file if one matches, otherwise the SPA entry point.
+
+        Client-side routes have no file behind them, so unmatched paths fall
+        through to index.html and let the app route them.
+        """
+        # An unknown /api path is a bug, not a client-side route; 404 as JSON
+        # rather than handing back HTML that the caller can't parse.
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
+
+        candidate = (FRONTEND_DIST / full_path).resolve()
+        if (
+            full_path
+            and candidate.is_relative_to(FRONTEND_DIST)  # no ../ escapes
+            and candidate.is_file()
+        ):
+            return FileResponse(candidate)
+
+        return FileResponse(FRONTEND_DIST / "index.html")
