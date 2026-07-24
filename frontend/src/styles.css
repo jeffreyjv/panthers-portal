@@ -1542,3 +1542,351 @@ a {
     padding: 0.45rem 0.1rem;
   }
 }
+
+/* --- Talk ------------------------------------------------------------------
+   Fan posts, replies and reactions. Built from the same tokens as the rest of
+   the app (--panel, --border, --blue, --radius) so it inherits the theme in
+   both modes without introducing any of its own. */
+
+.talk-banner {
+  margin-bottom: 1rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--espn);
+  border-radius: var(--radius);
+  background: var(--panel);
+  font-size: 0.9rem;
+}
+
+/* --- Composer --- */
+.talk-composer,
+.talk-signin {
+  margin-bottom: 1.5rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow-card);
+}
+
+/* Reserves the composer's height while the session is still unknown, so the
+   feed below doesn't jump once it resolves. */
+.talk-composer-skeleton {
+  height: 9.5rem;
+  background: var(--panel);
+}
+
+.talk-signin {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.talk-signin-claw {
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  color: var(--claw-ghost);
+}
+
+.talk-signin > div {
+  flex: 1 1 12rem;
+}
+
+.talk-signin-title {
+  margin: 0 0 0.15rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.talk-input {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 6px);
+  background: var(--panel-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.95rem;
+  resize: vertical;
+}
+
+.talk-input:focus-visible,
+.talk-reply-input:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+.talk-composer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.talk-signed-in,
+.talk-composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* --- Buttons --- */
+.talk-btn {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.talk-btn:hover:not(:disabled) {
+  border-color: var(--blue);
+}
+
+.talk-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.talk-btn-primary {
+  border-color: transparent;
+  background: var(--blue);
+  color: #fff;
+}
+
+.talk-btn-primary:hover:not(:disabled) {
+  background: var(--blue-bright);
+}
+
+.talk-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--silver);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.talk-link:hover {
+  color: var(--blue-bright);
+}
+
+.talk-delete {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--silver-dim);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.talk-delete:hover {
+  color: var(--espn);
+}
+
+/* --- Feed --- */
+.talk-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.talk-post {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.talk-post-body {
+  flex: 1;
+  min-width: 0; /* lets long unbroken text wrap instead of stretching the card */
+}
+
+.talk-post-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.talk-author {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.talk-text {
+  margin: 0.25rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  /* A pasted URL or a wall of one word can't be allowed to widen the card. */
+  overflow-wrap: anywhere;
+  white-space: pre-wrap; /* keeps the line breaks people typed */
+}
+
+.talk-deleted {
+  color: var(--silver-dim);
+  font-style: italic;
+}
+
+.talk-avatar {
+  width: 2.4rem;
+  height: 2.4rem;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--panel-2);
+}
+
+.talk-avatar-fallback {
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--silver);
+}
+
+.talk-post-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-top: 0.55rem;
+  flex-wrap: wrap;
+}
+
+/* --- Reactions --- */
+.talk-reactions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.talk-reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.talk-reaction:hover {
+  border-color: var(--blue);
+}
+
+/* The viewer's own picks, so a glance says what you already reacted with. */
+.talk-reaction.is-mine {
+  border-color: var(--blue);
+  background: var(--blue-glow);
+}
+
+/* Unused reactions recede until hovered, so a post with one reaction doesn't
+   read as a row of four buttons. */
+.talk-reaction.is-empty {
+  opacity: 0.45;
+}
+
+.talk-reaction.is-empty:hover,
+.talk-reaction.is-empty:focus-visible {
+  opacity: 1;
+}
+
+.talk-reaction-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Replies --- */
+.talk-thread {
+  margin-top: 0.75rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.talk-reply {
+  display: flex;
+  gap: 0.55rem;
+}
+
+.talk-reply .talk-avatar {
+  width: 1.7rem;
+  height: 1.7rem;
+}
+
+.talk-reply .talk-text {
+  font-size: 0.9rem;
+}
+
+.talk-reply-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.talk-reply-input {
+  flex: 1 1 10rem;
+  min-width: 0;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.talk-inline-error {
+  margin: 0.4rem 0 0;
+  color: var(--espn);
+  font-size: 0.8rem;
+}
+
+.talk-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 560px) {
+  .talk-post {
+    padding: 0.75rem;
+    gap: 0.6rem;
+  }
+  .talk-avatar {
+    width: 2rem;
+    height: 2rem;
+  }
+  /* Sign-out sits under the name rather than squeezing the Post button. */
+  .talk-composer-foot {
+    align-items: flex-start;
+  }
+}

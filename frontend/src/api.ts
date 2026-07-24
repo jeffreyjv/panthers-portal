@@ -138,6 +138,59 @@ async function getJSON<T>(path: string): Promise<T> {
   return res.json();
 }
 
+/** An error carrying the HTTP status, so callers can tell 401 from 429. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+/** Reads the server's error detail, falling back to something sayable.
+ *
+ * FastAPI puts a string in `detail` for HTTPException but an array of field
+ * errors there for validation failures, so a naive read renders "[object
+ * Object]" at the user.
+ */
+async function apiError(res: Response): Promise<ApiError> {
+  let detail = "";
+  try {
+    const body = await res.json();
+    if (typeof body?.detail === "string") {
+      detail = body.detail;
+    } else if (Array.isArray(body?.detail)) {
+      detail = body.detail[0]?.msg ?? "";
+      // Pydantic prefixes its messages; "Value error, Post cannot be empty"
+      // is not a sentence to show anyone.
+      detail = detail.replace(/^Value error,\s*/, "");
+    }
+  } catch {
+    // Non-JSON body (a proxy error page, say). The status alone will do.
+  }
+  return new ApiError(detail || `Request failed (${res.status})`, res.status);
+}
+
+/** Writes. Deliberately not routed through `cached()` — see below. */
+async function sendJSON<T>(
+  path: string,
+  method: "POST" | "DELETE",
+  body?: unknown,
+): Promise<T> {
+  const res = await fetch(path, {
+    method,
+    // Without this the session cookie is omitted on cross-origin dev requests
+    // and every write looks like a mystery 401.
+    credentials: "same-origin",
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  if (!res.ok) throw await apiError(res);
+  return res.status === 204 ? (undefined as T) : res.json();
+}
+
 export function fetchArticles(): Promise<Article[]> {
   return cached("articles", () => getJSON<Article[]>("/api/articles"));
 }
@@ -158,6 +211,88 @@ export function fetchRoster(): Promise<Player[]> {
 
 export function fetchStandings(): Promise<Standings> {
   return cached("standings", () => getJSON<Standings>("/api/standings"));
+}
+
+// --- Talk --------------------------------------------------------------------
+// Everything below bypasses `cached()` on purpose. That cache never
+// invalidates, which is right for articles and rosters and wrong for a feed
+// people are writing to: cached, a new post would not appear until reload.
+
+export interface CurrentUser {
+  id: number;
+  display_name: string;
+  avatar_url: string | null;
+  email: string;
+}
+
+export interface PostAuthor {
+  id: number;
+  display_name: string;
+  avatar_url: string | null;
+}
+
+export interface Post {
+  id: number;
+  parent_id: number | null;
+  author: PostAuthor;
+  /** Null exactly when `deleted` — a removed post keeps its place, not its text. */
+  body: string | null;
+  created_at: string;
+  edited_at: string | null;
+  deleted: boolean;
+  reply_count: number;
+  /** emoji -> total count across everyone. */
+  reactions: Record<string, number>;
+  /** Which of those the viewer picked. Empty when signed out. */
+  viewer_reactions: string[];
+}
+
+export interface Feed {
+  posts: Post[];
+  next_cursor: string | null;
+}
+
+export interface ReactionResult {
+  post_id: number;
+  reactions: Record<string, number>;
+  viewer_reactions: string[];
+}
+
+/** The reactions the server accepts. Kept in step with ALLOWED_REACTIONS in
+ *  backend/models.py — the server rejects anything else with a 422. */
+export const REACTIONS = ["🔥", "😭", "👏", "🐾"] as const;
+
+export function fetchMe(): Promise<CurrentUser | null> {
+  return getJSON<CurrentUser | null>("/api/auth/me");
+}
+
+export function logout(): Promise<{ ok: boolean }> {
+  return sendJSON<{ ok: boolean }>("/api/auth/logout", "POST");
+}
+
+export function fetchFeed(cursor?: string | null): Promise<Feed> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return getJSON<Feed>(`/api/posts${query}`);
+}
+
+export function createPost(body: string): Promise<Post> {
+  return sendJSON<Post>("/api/posts", "POST", { body });
+}
+
+export function fetchReplies(postId: number): Promise<Post[]> {
+  return getJSON<Post[]>(`/api/posts/${postId}/replies`);
+}
+
+export function createReply(postId: number, body: string): Promise<Post> {
+  return sendJSON<Post>(`/api/posts/${postId}/replies`, "POST", { body });
+}
+
+export function deletePost(postId: number): Promise<void> {
+  return sendJSON<void>(`/api/posts/${postId}`, "DELETE");
+}
+
+export function react(postId: number, emoji: string): Promise<ReactionResult> {
+  return sendJSON<ReactionResult>(`/api/posts/${postId}/reactions`, "POST", { emoji });
 }
 
 /** Where a team sits in its division, as an ordinal: "1st", "2nd", ... */

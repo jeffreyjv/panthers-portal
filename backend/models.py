@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 
 class Article(BaseModel):
@@ -116,3 +116,107 @@ class Standings(BaseModel):
     final: bool = False
     division: List[TeamStanding] = []
     league: Dict[str, TeamStanding] = {}
+
+
+# --- Talk --------------------------------------------------------------------
+# The reactions a post can carry. Enforced server-side: without an allowlist,
+# `emoji` is an unbounded user-controlled string going straight into the
+# database and onto everyone else's screen.
+ALLOWED_REACTIONS = ("🔥", "😭", "👏", "🐾")
+
+MAX_POST_LENGTH = 500
+
+
+class CurrentUser(BaseModel):
+    """The signed-in viewer, as the frontend sees themselves.
+
+    `email` is included because it is the viewer's own; it never appears on
+    anyone else's post, where `PostAuthor` is used instead.
+    """
+
+    id: int
+    display_name: str
+    avatar_url: Optional[str] = None
+    email: str
+
+
+class PostAuthor(BaseModel):
+    """Who wrote a post, as shown to everyone.
+
+    Deliberately no email — publishing the address of everyone who ever posted
+    would be the easiest privacy mistake in the app to make.
+    """
+
+    id: int
+    display_name: str
+    avatar_url: Optional[str] = None
+
+
+class Post(BaseModel):
+    """One post or reply.
+
+    `body` is null exactly when `deleted` is true: a removed post survives only
+    to hold its replies together, and its text is not served again.
+    """
+
+    id: int
+    parent_id: Optional[int] = None
+    author: PostAuthor
+    body: Optional[str] = None
+    created_at: datetime
+    edited_at: Optional[datetime] = None
+    deleted: bool = False
+    reply_count: int = 0
+    # emoji -> count, covering everyone.
+    reactions: Dict[str, int] = {}
+    # Which of those the viewer picked, so the UI can light them up. Always
+    # empty when signed out.
+    viewer_reactions: List[str] = []
+
+
+class Feed(BaseModel):
+    """A page of top-level posts, newest first.
+
+    `next_cursor` is opaque to the client: it hands the value back to ask for
+    the following page, and nothing else.
+    """
+
+    posts: List[Post]
+    next_cursor: Optional[str] = None
+
+
+class PostCreate(BaseModel):
+    body: str = Field(min_length=1, max_length=MAX_POST_LENGTH)
+
+    @field_validator("body")
+    @classmethod
+    def not_only_whitespace(cls, value: str) -> str:
+        """Trim, and reject anything that was only spaces.
+
+        min_length alone passes a body of twenty blank lines, which renders as
+        an empty card nobody can tell apart from a bug.
+        """
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("Post cannot be empty")
+        return trimmed
+
+
+class ReactionCreate(BaseModel):
+    emoji: str
+
+    @field_validator("emoji")
+    @classmethod
+    def known_emoji(cls, value: str) -> str:
+        if value not in ALLOWED_REACTIONS:
+            raise ValueError(f"Unsupported reaction. Pick one of: {' '.join(ALLOWED_REACTIONS)}")
+        return value
+
+
+class ReactionResult(BaseModel):
+    """The post's reaction state after a toggle, so the client can reconcile
+    its optimistic update against what actually landed."""
+
+    post_id: int
+    reactions: Dict[str, int] = {}
+    viewer_reactions: List[str] = []

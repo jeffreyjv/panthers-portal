@@ -4,20 +4,43 @@ Read-through in-memory caches over the official Panthers RSS feed (news) and
 ESPN's public team endpoint (schedule). No scheduler, no Redis, no database.
 """
 
+import base64
 import logging
 import os
 import re
+import threading
+import time
+from collections import deque
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Hashable, List, Optional
+from typing import Any, Callable, Deque, Dict, Hashable, List, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from models import Article, ArticleContent, Game, Player, Standings
+# Imported first: loads backend/.env into the environment before anything below
+# reads a setting at module level.
+import config  # noqa: F401  (imported for its side effect)
+import auth
+import db
+from models import (
+    Article,
+    ArticleContent,
+    CurrentUser,
+    Feed,
+    Game,
+    Player,
+    Post,
+    PostAuthor,
+    PostCreate,
+    ReactionCreate,
+    ReactionResult,
+    Standings,
+)
 from sources import (
     current_season,
     fetch_article_body,
@@ -253,14 +276,255 @@ def get_article_content(article_id: str) -> ArticleContent:
 
 
 # --- App ---------------------------------------------------------------------
-app = FastAPI(title="Panthers Portal API")
+# Whether the Talk tab has a working database behind it. Flipped on at startup;
+# every write route checks it.
+talk_ready = False
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Bring up the Talk schema, without making the rest of the app depend on it.
+
+    A missing DATABASE_URL or an unreachable Neon is logged loudly and disables
+    Talk, rather than refusing to boot. The news half of this app has no
+    database at all, and taking News, Schedule and Team down over a social
+    feature would be the wrong trade — the same reasoning that lets one dead
+    news source degrade the feed instead of emptying it.
+    """
+    global talk_ready
+    try:
+        db.init_schema()
+        purged = db.purge_expired_sessions()
+        if purged:
+            logger.info("Purged %d expired session(s)", purged)
+        talk_ready = True
+    except Exception:
+        logger.exception(
+            "Talk is disabled: the database could not be reached. "
+            "Check DATABASE_URL; the rest of the app is unaffected."
+        )
+
+    yield
+
+
+app = FastAPI(title="Panthers Portal API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in FRONTEND_ORIGINS if o.strip()],
-    allow_methods=["GET"],
+    # POST and DELETE arrived with Talk. Credentials are required so the
+    # session cookie rides along; that is only legal against an explicit origin
+    # list, which FRONTEND_ORIGINS is. Production is same-origin regardless.
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_credentials=True,
     allow_headers=["*"],
 )
+
+
+def require_talk() -> None:
+    """503 when Talk has no database, rather than an opaque connection error."""
+    if not talk_ready:
+        raise HTTPException(
+            status_code=503, detail="Talk is temporarily unavailable"
+        )
+
+
+# --- Rate limiting -----------------------------------------------------------
+# Per-user sliding window, held in memory like every other cache in this app.
+# That means it resets on restart and does not span replicas — acceptable
+# because the README already requires a single instance, and because this
+# exists to stop a script hammering the feed, not to meter honest users.
+POST_RATE_LIMIT = int(os.getenv("POST_RATE_LIMIT", "5"))
+POST_RATE_WINDOW_SECONDS = int(os.getenv("POST_RATE_WINDOW_SECONDS", "60"))
+
+_rate_history: Dict[int, Deque[float]] = {}
+_rate_lock = threading.Lock()
+
+
+def rate_limit(user_id: int) -> None:
+    """Raise 429 if this user has posted too often lately.
+
+    Abuse doesn't scale with legitimate traffic: one script can flood a quiet
+    site, which is exactly the shape of site this is.
+    """
+    now = time.monotonic()
+    cutoff = now - POST_RATE_WINDOW_SECONDS
+
+    with _rate_lock:
+        history = _rate_history.setdefault(user_id, deque())
+        while history and history[0] < cutoff:
+            history.popleft()
+
+        if len(history) >= POST_RATE_LIMIT:
+            retry_after = int(history[0] - cutoff) + 1
+            raise HTTPException(
+                status_code=429,
+                detail="You're posting too quickly. Give it a moment.",
+                headers={"Retry-After": str(retry_after)},
+            )
+
+        history.append(now)
+
+        # Users who stopped posting shouldn't linger forever. Cheap to sweep
+        # here; there is no scheduler in this app to do it elsewhere.
+        if len(_rate_history) > 1000:
+            for uid in [u for u, h in _rate_history.items() if not h or h[-1] < cutoff]:
+                del _rate_history[uid]
+
+
+app.include_router(auth.router)
+
+
+# --- Talk --------------------------------------------------------------------
+FEED_PAGE_SIZE = int(os.getenv("FEED_PAGE_SIZE", "25"))
+
+
+def _encode_cursor(row: Dict[str, Any]) -> str:
+    """Opaque keyset cursor: the last row's sort key, base64'd.
+
+    Encoded only so it reads as a token rather than something to hand-edit;
+    it is not a secret, and nothing trusts its contents beyond parsing.
+    """
+    raw = f"{row['created_at'].isoformat()}|{row['id']}"
+    return base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
+
+
+def _decode_cursor(cursor: Optional[str]) -> tuple:
+    if not cursor:
+        return None, None
+    try:
+        raw = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
+        created, _, post_id = raw.partition("|")
+        return datetime.fromisoformat(created), int(post_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid cursor")
+
+
+def _to_post(row: Dict[str, Any]) -> Post:
+    """Database row -> API shape."""
+    return Post(
+        id=row["id"],
+        parent_id=row["parent_id"],
+        author=PostAuthor(
+            id=row["author_id"],
+            display_name=row["author_name"],
+            avatar_url=row["author_avatar"],
+        ),
+        body=row["body"],
+        created_at=row["created_at"],
+        edited_at=row["edited_at"],
+        deleted=row["deleted"],
+        reply_count=row.get("reply_count", 0),
+        reactions=row["reactions"],
+        viewer_reactions=list(row["viewer_reactions"]),
+    )
+
+
+@app.get("/api/posts", response_model=Feed)
+def feed(
+    cursor: Optional[str] = Query(None, description="Opaque cursor from a previous page."),
+    limit: int = Query(FEED_PAGE_SIZE, ge=1, le=100),
+    viewer: Optional[CurrentUser] = Depends(auth.current_user),
+) -> Feed:
+    """The Talk feed. Readable signed out — only writing needs an account."""
+    require_talk()
+    before_created, before_id = _decode_cursor(cursor)
+
+    rows = db.list_feed(
+        limit=limit,
+        viewer_id=viewer.id if viewer else None,
+        before_created=before_created,
+        before_id=before_id,
+    )
+
+    # A short page means the end of the feed; handing back a cursor there would
+    # just cost the client one more request to learn nothing.
+    next_cursor = _encode_cursor(rows[-1]) if len(rows) == limit else None
+    return Feed(posts=[_to_post(r) for r in rows], next_cursor=next_cursor)
+
+
+@app.post("/api/posts", response_model=Post, status_code=201)
+def create_post(
+    payload: PostCreate,
+    user: CurrentUser = Depends(auth.require_user),
+) -> Post:
+    require_talk()
+    rate_limit(user.id)
+    post_id = db.create_post(author_id=user.id, body=payload.body)
+    return _to_post(db.get_post(post_id, viewer_id=user.id))
+
+
+@app.get("/api/posts/{post_id}/replies", response_model=List[Post])
+def replies(
+    post_id: int,
+    viewer: Optional[CurrentUser] = Depends(auth.current_user),
+) -> List[Post]:
+    require_talk()
+    rows = db.list_replies(post_id, viewer_id=viewer.id if viewer else None)
+    return [_to_post(r) for r in rows]
+
+
+@app.post("/api/posts/{post_id}/replies", response_model=Post, status_code=201)
+def create_reply(
+    post_id: int,
+    payload: PostCreate,
+    user: CurrentUser = Depends(auth.require_user),
+) -> Post:
+    require_talk()
+    rate_limit(user.id)
+
+    try:
+        reply_id = db.create_post(author_id=user.id, body=payload.body, parent_id=post_id)
+    except db.ReplyDepthError:
+        raise HTTPException(
+            status_code=400, detail="Replies only go one level deep"
+        )
+    except db.ParentMissingError:
+        raise HTTPException(status_code=404, detail="That post is gone")
+
+    return _to_post(db.get_post(reply_id, viewer_id=user.id))
+
+
+@app.delete("/api/posts/{post_id}", status_code=204)
+def delete_post(
+    post_id: int,
+    user: CurrentUser = Depends(auth.require_user),
+) -> Response:
+    require_talk()
+    author_id = db.post_author(post_id)
+    if author_id is None:
+        raise HTTPException(status_code=404, detail="That post is gone")
+    if author_id != user.id:
+        raise HTTPException(status_code=403, detail="That isn't your post")
+
+    db.soft_delete_post(post_id)
+    return Response(status_code=204)
+
+
+@app.post("/api/posts/{post_id}/reactions", response_model=ReactionResult)
+def react(
+    post_id: int,
+    payload: ReactionCreate,
+    user: CurrentUser = Depends(auth.require_user),
+) -> ReactionResult:
+    """Toggle one reaction. The emoji is checked against the allowlist by
+    ReactionCreate before this runs."""
+    require_talk()
+
+    try:
+        db.toggle_reaction(post_id, user.id, payload.emoji)
+    except db.ParentMissingError:
+        raise HTTPException(status_code=404, detail="That post is gone")
+
+    row = db.get_post(post_id, viewer_id=user.id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="That post is gone")
+
+    return ReactionResult(
+        post_id=post_id,
+        reactions=row["reactions"],
+        viewer_reactions=list(row["viewer_reactions"]),
+    )
 
 
 @app.get("/api/articles", response_model=List[Article])
@@ -307,6 +571,10 @@ def health() -> dict:
         "cached_games": _schedule_cache.size(current_season()),
         "cached_players": _roster_cache.size(current_season()),
         "cached_article_bodies": _content_cache.entry_count(),
+        # Talk's schema came up at startup; `database` is checked live, so a
+        # Neon instance that went away since boot shows here.
+        "talk_ready": talk_ready,
+        "database": db.ping() if talk_ready else False,
     }
 
 

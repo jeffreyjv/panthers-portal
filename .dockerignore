@@ -9,8 +9,10 @@ env/
 node_modules/
 frontend/dist/
 
-# Env
-.env
+# Env — `**/` matters: a bare `.env` pattern only matches the build-context
+# root, which would let backend/.env be copied into the image and bake the
+# database password and OAuth secret into a layer.
+**/.env
 
 # Repo / editor / OS
 .git/

@@ -4,10 +4,11 @@ import { Countdown } from "./Countdown";
 import { News } from "./News";
 import { Schedule } from "./Schedule";
 import { SocialLinks } from "./SocialLinks";
+import { Talk } from "./Talk";
 import { Team } from "./Team";
 
 type Theme = "dark" | "light";
-type Tab = "news" | "schedule" | "team";
+type Tab = "news" | "schedule" | "team" | "talk";
 
 const THEME_KEY = "panthers-portal-theme";
 
@@ -15,6 +16,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "news", label: "News" },
   { id: "schedule", label: "Schedule" },
   { id: "team", label: "Team" },
+  { id: "talk", label: "Talk" },
 ];
 
 function readTheme(): Theme {
@@ -109,9 +111,20 @@ function Header({
   );
 }
 
+/** Where to open on load.
+ *
+ * Google's callback returns to "/?auth=...", which would otherwise drop the
+ * user on News — away from the tab they signed in to use.
+ */
+function initialTab(): Tab {
+  return new URLSearchParams(window.location.search).has("auth")
+    ? "talk"
+    : "news";
+}
+
 export default function App() {
   const { theme, toggle } = useTheme();
-  const [tab, setTab] = useState<Tab>("news");
+  const [tab, setTab] = useState<Tab>(initialTab);
 
   // Otherwise switching tabs while scrolled down drops you mid-page.
   useEffect(() => {
@@ -132,6 +145,7 @@ export default function App() {
           {tab === "news" && <News />}
           {tab === "schedule" && <Schedule />}
           {tab === "team" && <Team />}
+          {tab === "talk" && <Talk />}
         </div>
       </main>
 
