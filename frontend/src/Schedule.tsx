@@ -1,6 +1,17 @@
 import { useEffect, useState } from "react";
-import { Game, fetchSchedule, gameDate, gameTime, peekSchedule } from "./api";
+import {
+  Game,
+  Standings,
+  divisionRank,
+  fetchSchedule,
+  fetchStandings,
+  gameDate,
+  gameTime,
+  peekSchedule,
+  peekStandings,
+} from "./api";
 import { ClawMark } from "./ClawMark";
+import { DivisionStrip } from "./DivisionStrip";
 
 type Status = "loading" | "error" | "ready";
 
@@ -13,7 +24,13 @@ function record(games: Game[]): string | null {
   return ties > 0 ? `${base}-${ties}` : base;
 }
 
-function GameRow({ game }: { game: Game }) {
+function GameRow({
+  game,
+  standings,
+}: {
+  game: Game;
+  standings: Standings | null;
+}) {
   if (game.bye) {
     return (
       <li>
@@ -26,6 +43,14 @@ function GameRow({ game }: { game: Game }) {
       </li>
     );
   }
+
+  // Opponent's record, when we know it. Missing standings just means the row
+  // renders the way it always did.
+  const abbr = game.opponent_abbr?.toUpperCase();
+  const opponent = abbr ? standings?.league[abbr] : undefined;
+  const divisional = Boolean(
+    abbr && standings?.division.some((t) => t.abbreviation.toUpperCase() === abbr),
+  );
 
   const body = (
     <>
@@ -41,6 +66,11 @@ function GameRow({ game }: { game: Game }) {
           {game.home ? "vs" : "at"}
         </span>
         <span className="game-opponent">{game.opponent}</span>
+        {opponent && (
+          <span className="game-record" title={`${opponent.name} ${opponent.record}`}>
+            {opponent.record}
+          </span>
+        )}
       </div>
       {game.outcome ? (
         <span className={`game-result outcome-${game.outcome.toLowerCase()}`}>
@@ -58,10 +88,12 @@ function GameRow({ game }: { game: Game }) {
     </>
   );
 
+  const className = `game${divisional ? " is-divisional" : ""}`;
+
   if (game.url) {
     return (
       <li>
-        <a className="game" href={game.url} target="_blank" rel="noreferrer">
+        <a className={className} href={game.url} target="_blank" rel="noreferrer">
           {body}
         </a>
       </li>
@@ -70,7 +102,7 @@ function GameRow({ game }: { game: Game }) {
 
   return (
     <li>
-      <div className="game">{body}</div>
+      <div className={className}>{body}</div>
     </li>
   );
 }
@@ -91,6 +123,9 @@ export function Schedule() {
   const preloaded = peekSchedule();
   const [games, setGames] = useState<Game[]>(preloaded ?? []);
   const [status, setStatus] = useState<Status>(preloaded ? "ready" : "loading");
+  const [standings, setStandings] = useState<Standings | null>(
+    peekStandings() ?? null,
+  );
 
   useEffect(() => {
     let active = true;
@@ -104,6 +139,15 @@ export function Schedule() {
         if (!active) return;
         setStatus("error");
       });
+
+    // Standings are enrichment: they load alongside the schedule and a failure
+    // is swallowed, leaving the tab exactly as it was before they existed.
+    fetchStandings()
+      .then((data) => {
+        if (active) setStandings(data);
+      })
+      .catch(() => {});
+
     return () => {
       active = false;
     };
@@ -119,19 +163,31 @@ export function Schedule() {
     );
   }
 
-  const summary = record(games);
+  // Before kickoff no game has an outcome, so fall back to the record the
+  // standings carry — which the strip labels with the season it belongs to.
+  const panthers = standings?.division.find((t) => t.panthers);
+  const summary = record(games) ?? panthers?.record ?? null;
+  const rank = standings ? divisionRank(standings) : null;
 
   return (
     <>
       <div className="section-head">
         <h2 className="section-title">Schedule</h2>
-        {summary && <span className="section-badge">{summary}</span>}
+        {summary && (
+          <span className="section-badge">
+            {summary}
+            {rank && <small> · {rank} in NFC South</small>}
+          </span>
+        )}
         <span className="section-rule" />
       </div>
+      {standings && <DivisionStrip standings={standings} />}
       <ul className="game-list">
         {status === "loading"
           ? Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
-          : games.map((game) => <GameRow key={game.week} game={game} />)}
+          : games.map((game) => (
+              <GameRow key={game.week} game={game} standings={standings} />
+            ))}
       </ul>
     </>
   );

@@ -3,6 +3,7 @@ import { ClawMark } from "./ClawMark";
 import { Countdown } from "./Countdown";
 import { News } from "./News";
 import { Schedule } from "./Schedule";
+import { SocialLinks } from "./SocialLinks";
 import { Team } from "./Team";
 
 type Theme = "dark" | "light";
@@ -100,6 +101,7 @@ function Header({
               </button>
             ))}
           </nav>
+          <SocialLinks label="Panthers on social media" />
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         </div>
       </div>
@@ -141,6 +143,7 @@ export default function App() {
             panthers.com
           </a>
         </span>
+        <SocialLinks label="Panthers on social media (footer)" />
       </footer>
     </div>
   );

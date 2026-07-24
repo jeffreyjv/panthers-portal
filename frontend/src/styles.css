@@ -66,7 +66,10 @@ body {
   color: var(--ink);
   font-family: "Barlow", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+  /* dvh tracks the mobile URL bar as it hides; vh doesn't, which leaves a
+     scroll of dead space under the footer on a phone. vh stays as a fallback. */
   min-height: 100vh;
+  min-height: 100dvh;
   transition: background-color 0.25s ease, color 0.25s ease;
 }
 
@@ -77,6 +80,7 @@ a {
 
 .page {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -98,14 +102,27 @@ a {
   background: linear-gradient(90deg, var(--blue), var(--blue-bright), transparent);
 }
 
+/* Unlike .main, this one runs the full width of the window — the brand and the
+   tools sit at the edges rather than inside the 1120px content rail. The three
+   columns are what keep the countdown dead-centre no matter how wide the brand
+   or the tab row get; space-between would push it off-centre instead. */
 .masthead-inner {
-  max-width: 1120px;
-  margin: 0 auto;
-  padding: 0.85rem 1.25rem;
-  display: flex;
+  /* The insets are 0 everywhere except a notched phone in landscape, where
+     they keep the brand and tabs clear of the rounded corners. */
+  padding: 0.85rem max(1.75rem, env(safe-area-inset-right))
+    0.85rem max(1.75rem, env(safe-area-inset-left));
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: 1rem;
+}
+
+.masthead-inner > .countdown {
+  justify-self: center;
+}
+
+.masthead-inner > .masthead-tools {
+  justify-self: end;
 }
 
 .brand {
@@ -135,7 +152,7 @@ a {
 .masthead-tools {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
+  gap: 1.1rem;
   min-width: 0;
 }
 
@@ -225,9 +242,14 @@ a {
   transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 
-.theme-toggle:hover {
-  color: var(--blue-bright);
-  border-color: var(--blue);
+/* Touch devices match hover:none and fire :hover on tap, where it then sticks
+   until you tap something else. Every hover affordance below is gated on a
+   real pointer; the focus-visible styles keep keyboard users covered. */
+@media (hover: hover) {
+  .theme-toggle:hover {
+    color: var(--blue-bright);
+    border-color: var(--blue);
+  }
 }
 
 .theme-toggle:focus-visible {
@@ -270,9 +292,11 @@ a {
   transition: color 0.2s ease, background 0.2s ease;
 }
 
-.tab:hover {
-  color: var(--ink);
-  background: var(--panel-2);
+@media (hover: hover) {
+  .tab:hover {
+    color: var(--ink);
+    background: var(--panel-2);
+  }
 }
 
 .tab.is-active {
@@ -338,10 +362,12 @@ a {
   transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
-.feature:hover {
-  transform: translateY(-3px);
-  border-color: var(--blue);
-  box-shadow: var(--shadow-feature), 0 0 0 1px var(--blue-glow);
+@media (hover: hover) {
+  .feature:hover {
+    transform: translateY(-3px);
+    border-color: var(--blue);
+    box-shadow: var(--shadow-feature), 0 0 0 1px var(--blue-glow);
+  }
 }
 
 .feature-media {
@@ -354,8 +380,10 @@ a {
   transition: transform 0.5s ease;
 }
 
-.feature:hover .feature-media {
-  transform: scale(1.05);
+@media (hover: hover) {
+  .feature:hover .feature-media {
+    transform: scale(1.05);
+  }
 }
 
 .feature-scrim {
@@ -562,6 +590,13 @@ a {
   white-space: nowrap;
 }
 
+/* The division rank trailing the record, e.g. "8-9 · 4th in NFC South". */
+.section-badge small {
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+  color: var(--silver-dim);
+}
+
 .section-rule {
   flex: 1;
   height: 1px;
@@ -575,7 +610,10 @@ a {
   padding: 0;
   display: grid;
   gap: 1.25rem;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  /* min() so the track can fall below its ideal width on a narrow phone.
+     A bare minmax(300px, …) overflows a 320px viewport once the page padding
+     is counted, and the whole page scrolls sideways. */
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
 }
 
 .card {
@@ -589,10 +627,12 @@ a {
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-.card:hover {
-  transform: translateY(-4px);
-  border-color: var(--blue);
-  box-shadow: var(--shadow-card), 0 0 0 1px var(--blue-glow);
+@media (hover: hover) {
+  .card:hover {
+    transform: translateY(-4px);
+    border-color: var(--blue);
+    box-shadow: var(--shadow-card), 0 0 0 1px var(--blue-glow);
+  }
 }
 
 .card-media-wrap {
@@ -608,8 +648,10 @@ a {
   transition: transform 0.4s ease;
 }
 
-.card:hover .card-media {
-  transform: scale(1.06);
+@media (hover: hover) {
+  .card:hover .card-media {
+    transform: scale(1.06);
+  }
 }
 
 .card-body {
@@ -628,8 +670,10 @@ a {
   margin: 0;
 }
 
-.card:hover .card-title {
-  color: var(--blue-bright);
+@media (hover: hover) {
+  .card:hover .card-title {
+    color: var(--blue-bright);
+  }
 }
 
 .card-summary {
@@ -839,9 +883,11 @@ a {
   transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
-.game:hover {
-  border-color: var(--blue);
-  transform: translateX(3px);
+@media (hover: hover) {
+  .game:hover {
+    border-color: var(--blue);
+    transform: translateX(3px);
+  }
 }
 
 .game-week {
@@ -901,6 +947,27 @@ a {
   white-space: nowrap;
 }
 
+/* The opponent's season record. Never shrinks: the opponent name ellipses
+   first, since it's the part that can run long. */
+.game-record {
+  flex: none;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-2);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--silver-dim);
+}
+
+/* Ties the division games back to the strip above. Inset rather than a real
+   border so the row's grid columns don't shift. */
+.game.is-divisional {
+  box-shadow: inset 3px 0 0 var(--blue);
+}
+
 .game-when {
   display: flex;
   flex-direction: column;
@@ -955,6 +1022,101 @@ a {
 .game-skeleton:hover {
   border-color: var(--border);
   transform: none;
+}
+
+/* ---------- Division strip (above the schedule) ---------- */
+.division {
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.9rem 0.85rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.division-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.7rem;
+}
+
+.division-title {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--silver);
+}
+
+.division-season {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--silver-dim);
+}
+
+/* Four equal columns rather than a table: it stays even at 320px, where a
+   table's header row would cost more width than it explains. */
+.division-teams {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.4rem;
+}
+
+.division-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.5rem 0.25rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  min-width: 0;
+}
+
+.division-team.is-panthers {
+  background: var(--blue-glow);
+  border-color: var(--blue);
+}
+
+.division-logo {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.division-abbr {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  color: var(--silver);
+}
+
+.division-team.is-panthers .division-abbr {
+  color: var(--ink);
+}
+
+.division-record {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800;
+  font-size: 1.05rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.division-streak {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--silver-dim);
 }
 
 /* ---------- Roster controls ---------- */
@@ -1013,9 +1175,11 @@ a {
   transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
-.chip:hover {
-  color: var(--ink);
-  border-color: var(--blue);
+@media (hover: hover) {
+  .chip:hover {
+    color: var(--ink);
+    border-color: var(--blue);
+  }
 }
 
 .chip.is-on {
@@ -1041,7 +1205,7 @@ a {
   padding: 0;
   display: grid;
   gap: 0.85rem;
-  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(270px, 100%), 1fr));
 }
 
 .player {
@@ -1055,10 +1219,12 @@ a {
   transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.player:hover {
-  transform: translateY(-3px);
-  border-color: var(--blue);
-  box-shadow: var(--shadow-card), 0 0 0 1px var(--blue-glow);
+@media (hover: hover) {
+  .player:hover {
+    transform: translateY(-3px);
+    border-color: var(--blue);
+    box-shadow: var(--shadow-card), 0 0 0 1px var(--blue-glow);
+  }
 }
 
 .player-shot {
@@ -1148,8 +1314,10 @@ a {
 /* ---------- Footer ---------- */
 .footer {
   border-top: 1px solid var(--border);
-  padding: 1.5rem 1.25rem;
+  /* Clears the home indicator on a gesture-nav phone. */
+  padding: 1.5rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 0.6rem;
@@ -1173,41 +1341,106 @@ a {
   text-decoration: underline;
 }
 
-/* Below this the brand and the tabs stop fitting on one line, so the tab row
-   wraps underneath and spans the full width. */
+/* ---------- Social links ---------- */
+.socials {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.social-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--silver);
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+/* These are icon buttons, not prose links, so they opt out of the footer's
+   text-link treatment — which is more specific than .social-link on its own. */
+.footer .social-link {
+  color: var(--silver);
+}
+
+.footer .social-link:hover {
+  text-decoration: none;
+}
+
+@media (hover: hover) {
+  .social-link:hover {
+    color: var(--blue-bright);
+    border-color: var(--blue);
+  }
+}
+
+.social-link:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.social-link svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* In the masthead they sit beside the theme toggle, so they match its size
+   rather than the smaller footer scale. */
+.masthead-tools .social-link {
+  width: 36px;
+  height: 36px;
+}
+
+.masthead-tools .social-link svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---------- Breakpoints ----------
+   Two of them, and only two:
+
+   700px — the layout wrap. Below this the brand and the tabs stop fitting on
+           one line, so the tab row drops underneath and spans the full width.
+   480px — the phone. Padding tightens, type steps down, and anything that
+           can't earn its width gets dropped.
+
+   Everything narrow lives here rather than beside its component, so the
+   phone layout can be read in one pass instead of hunted for. */
+
 @media (max-width: 700px) {
+  /* Back to flex here: the tab row wraps onto its own line below the brand,
+     which the three fixed columns above can't express. */
   .masthead-inner {
+    display: flex;
     flex-wrap: wrap;
+    padding-left: max(1.25rem, env(safe-area-inset-left));
+    padding-right: max(1.25rem, env(safe-area-inset-right));
     gap: 0.6rem;
   }
   .masthead-tools {
     order: 1;
     width: 100%;
+    gap: 0.85rem;
     justify-content: space-between;
   }
   .tabs {
     margin-left: -0.35rem;
   }
+  /* space-between would strand the social icons in the middle of the row;
+     they belong with the theme toggle on the right. */
+  .masthead-tools .socials {
+    margin-left: auto;
+  }
   /* Shares the top row with the brand once the tabs drop below. */
   .countdown {
     margin-left: auto;
   }
-}
-
-@media (max-width: 420px) {
-  /* Only the clock still fits alongside the wordmark. */
-  .countdown-label {
-    display: none;
-  }
-}
-
-@media (max-width: 560px) {
   .feature {
     min-height: 340px;
-  }
-  .tab {
-    padding: 0.4rem 0.65rem;
-    font-size: 0.98rem;
   }
   .feature-body {
     padding: 1.4rem;
@@ -1219,5 +1452,93 @@ a {
   }
   .game-opponent {
     font-size: 1.1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Every side padding narrows together, so the content keeps its margins
+     without the page ever exceeding the viewport. */
+  .main {
+    padding: 1.25rem 0.9rem 2rem;
+    /* The tall floor only exists to stop the footer riding up on desktop;
+       on a phone it's just empty scroll. */
+    min-height: 0;
+  }
+  .masthead-inner {
+    padding: 0.7rem max(0.9rem, env(safe-area-inset-right)) 0.7rem
+      max(0.9rem, env(safe-area-inset-left));
+  }
+  .footer {
+    padding: 1.25rem 0.9rem calc(1.25rem + env(safe-area-inset-bottom));
+  }
+
+  /* Only the clock still fits alongside the wordmark. */
+  .countdown-label {
+    display: none;
+  }
+
+  /* Three 44px targets alongside the tabs is 16px more than a 390px phone has,
+     and the tab row is what loses — "Team" ends up clipped under an icon. The
+     footer copy is a scroll away, so the masthead pair goes. */
+  .masthead-tools .socials {
+    display: none;
+  }
+
+  /* "Special Teams — Starters" is wider than a 320px viewport on its own, so
+     the roster's section titles wrap here instead of pushing the page sideways. */
+  .section-head {
+    gap: 0.6rem;
+  }
+  .section-title {
+    white-space: normal;
+    min-width: 0;
+    font-size: 1.3rem;
+  }
+
+  /* 44px minimum touch targets — below that these are genuinely hard to hit. */
+  .tab {
+    min-height: 44px;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.98rem;
+  }
+  .chip {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.3rem 0.85rem;
+  }
+  .theme-toggle,
+  .social-link {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Anything under 16px makes iOS Safari zoom the whole page on focus. */
+  .roster-search {
+    font-size: 16px;
+  }
+
+  /* Skeletons only need to be tall enough to read as placeholders. */
+  .feature,
+  .feature-skeleton,
+  .feature-skeleton .skeleton-media {
+    min-height: 240px;
+  }
+
+  /* The middle cell is the tightest spot on the page: logo, vs/at, opponent
+     and record all share it, so the record shrinks and the opponent name
+     ellipses before the kickoff time can be pushed into a wrap. */
+  .game-record {
+    padding: 0.05rem 0.3rem;
+    font-size: 0.66rem;
+  }
+  .division {
+    padding: 0.65rem 0.6rem 0.7rem;
+  }
+  .division-teams {
+    gap: 0.25rem;
+  }
+  .division-team {
+    padding: 0.45rem 0.1rem;
   }
 }

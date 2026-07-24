@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -76,3 +76,43 @@ class Game(BaseModel):
     # "W" | "L" | "T", set only once the game is final.
     outcome: Optional[str] = None
     url: Optional[str] = None
+
+
+class TeamStanding(BaseModel):
+    """One team's line in the standings."""
+
+    team_id: str
+    name: str
+    abbreviation: str
+    logo: Optional[str] = None
+    wins: int = 0
+    losses: int = 0
+    ties: int = 0
+    # Pre-formatted "8-9" / "8-9-1", so callers don't reassemble it.
+    record: str = "0-0"
+    win_pct: Optional[str] = None
+    # "W1", "L2" — as ESPN words it.
+    streak: Optional[str] = None
+    points_for: Optional[int] = None
+    points_against: Optional[int] = None
+    division_record: Optional[str] = None
+    playoff_seed: Optional[int] = None
+    # ESPN's clinch marker: "z" division, "x" playoffs, "e" eliminated, ...
+    clinched: Optional[str] = None
+    panthers: bool = False
+
+
+class Standings(BaseModel):
+    """A division table plus every team's record.
+
+    `division` is the NFC South in standings order, which is what the strip
+    renders. `league` covers all 32 teams keyed by abbreviation so schedule
+    rows can show an opponent's record without a second request.
+    """
+
+    season: int
+    # True when the season is over, or hasn't kicked off yet and these are the
+    # previous season's final numbers.
+    final: bool = False
+    division: List[TeamStanding] = []
+    league: Dict[str, TeamStanding] = {}

@@ -23,6 +23,9 @@ uvicorn main:app --reload --port 8000
 ```
 
 - `GET /api/articles` — list of articles, newest first.
+- `GET /api/schedule` — the season calendar, bye weeks included.
+- `GET /api/roster` — the roster, grouped and flagged with depth-chart starters.
+- `GET /api/standings` — the NFC South table plus every team's record.
 - `GET /api/health` — status plus cache age in seconds.
 
 ### Config (environment variables)
@@ -31,6 +34,7 @@ uvicorn main:app --reload --port 8000
 | -------------------- | ------------------------------------ | -------------------------------- |
 | `PANTHERS_FEED_URL`  | `https://www.panthers.com/rss/news`  | Source RSS feed.                 |
 | `ESPN_NEWS_LIMIT`    | `50`                                 | ESPN items to merge into the feed.|
+| `NEWS_LIMIT`         | `50`                                 | Cap on the merged feed, applied after dedupe.|
 | `CACHE_TTL_SECONDS`  | `600`                                | How long cached data stays fresh.|
 | `FRONTEND_ORIGINS`   | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated CORS origins. |
 | `FRONTEND_DIST`      | `../frontend/dist`                   | Built frontend to serve; ignored if absent. |
@@ -57,6 +61,21 @@ are dropped by URL and by normalized title, with panthers.com winning ties.
 Reader body text is fetched per source. panthers.com is scraped from the
 article page; ESPN bot-blocks its pages, so its story text comes from the
 `content.core.api` JSON that each news item links to.
+
+### Standings
+
+`/api/standings` returns the NFC South in ESPN's own order — its tiebreakers
+are already applied, so the order is never recomputed — alongside `league`, a
+record for all 32 teams keyed by abbreviation. One request covers both, which
+is what lets the schedule show each opponent's record without a second call.
+
+ESPN publishes the coming season's table months early with every team at 0-0.
+An all-zero table is therefore replaced by the previous season's, flagged
+`final` so the UI can label it (e.g. "2025 final") rather than showing zeros.
+
+The Schedule tab treats standings as enrichment: if the request fails, the
+division strip and the opponent records disappear and the schedule renders
+exactly as it would have otherwise.
 
 ## Frontend
 

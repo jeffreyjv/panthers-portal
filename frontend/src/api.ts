@@ -58,6 +58,34 @@ export interface Game {
   url: string | null;
 }
 
+export interface TeamStanding {
+  team_id: string;
+  name: string;
+  abbreviation: string;
+  logo: string | null;
+  wins: number;
+  losses: number;
+  ties: number;
+  record: string;
+  win_pct: string | null;
+  streak: string | null;
+  points_for: number | null;
+  points_against: number | null;
+  division_record: string | null;
+  playoff_seed: number | null;
+  clinched: string | null;
+  panthers: boolean;
+}
+
+export interface Standings {
+  season: number;
+  final: boolean;
+  /** The NFC South, in standings order. */
+  division: TeamStanding[];
+  /** All 32 teams, keyed by abbreviation, for opponent lookups. */
+  league: Record<string, TeamStanding>;
+}
+
 /** Per-session response cache.
  *
  * Switching tabs unmounts a view, so without this every return trip refetches
@@ -98,6 +126,7 @@ function peek<T>(key: string): T | undefined {
 export const peekArticles = () => peek<Article[]>("articles");
 export const peekSchedule = () => peek<Game[]>("schedule");
 export const peekRoster = () => peek<Player[]>("roster");
+export const peekStandings = () => peek<Standings>("standings");
 export const peekArticleContent = (id: string) =>
   peek<ArticleContent>(`content:${id}`);
 
@@ -125,6 +154,23 @@ export function fetchSchedule(): Promise<Game[]> {
 
 export function fetchRoster(): Promise<Player[]> {
   return cached("roster", () => getJSON<Player[]>("/api/roster"));
+}
+
+export function fetchStandings(): Promise<Standings> {
+  return cached("standings", () => getJSON<Standings>("/api/standings"));
+}
+
+/** Where a team sits in its division, as an ordinal: "1st", "2nd", ... */
+export function divisionRank(standings: Standings): string | null {
+  const index = standings.division.findIndex((t) => t.panthers);
+  if (index < 0) return null;
+  const place = index + 1;
+  // 11th/12th/13th break the last-digit rule, hence the teens carve-out.
+  const suffix =
+    place % 100 >= 11 && place % 100 <= 13
+      ? "th"
+      : ["th", "st", "nd", "rd"][place % 10] ?? "th";
+  return `${place}${suffix}`;
 }
 
 // Kickoffs arrive as UTC and are rendered in the viewer's local time zone.

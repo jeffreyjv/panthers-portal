@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from models import Article, ArticleContent, Game, Player
+from models import Article, ArticleContent, Game, Player, Standings
 from sources import (
     current_season,
     fetch_article_body,
@@ -25,6 +25,8 @@ from sources import (
     fetch_panthers_articles,
     fetch_panthers_roster,
     fetch_panthers_schedule,
+    fetch_standings,
+    standings_are_empty,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -35,6 +37,9 @@ FEED_URL = os.getenv("PANTHERS_FEED_URL", "https://www.panthers.com/rss/news")
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "600"))
 # How many ESPN items to pull; they're merged into the same feed.
 ESPN_NEWS_LIMIT = int(os.getenv("ESPN_NEWS_LIMIT", "50"))
+# Cap on the merged feed, applied after sorting and dedupe so the 50 that
+# survive are the newest across both sources rather than the newest of either.
+NEWS_LIMIT = int(os.getenv("NEWS_LIMIT", "50"))
 # The schedule and roster barely move; refetch far less often than the news feed.
 SCHEDULE_CACHE_TTL_SECONDS = int(os.getenv("SCHEDULE_CACHE_TTL_SECONDS", "3600"))
 ROSTER_CACHE_TTL_SECONDS = int(os.getenv("ROSTER_CACHE_TTL_SECONDS", "3600"))
@@ -126,6 +131,10 @@ _schedule_cache = ReadThroughCache(
 _roster_cache = ReadThroughCache(
     "roster", ROSTER_CACHE_TTL_SECONDS, "Roster unavailable"
 )
+# Standings move once a week at most, so they ride the schedule's TTL.
+_standings_cache = ReadThroughCache(
+    "standings", SCHEDULE_CACHE_TTL_SECONDS, "Standings unavailable"
+)
 _content_cache = ReadThroughCache(
     "content",
     CONTENT_CACHE_TTL_SECONDS,
@@ -187,7 +196,7 @@ def get_articles() -> List[Article]:
             key=lambda a: a.published_at or datetime.min.replace(tzinfo=timezone.utc),
             reverse=True,
         )
-        return _dedupe(articles)
+        return _dedupe(articles)[:NEWS_LIMIT]
 
     return _articles_cache.get(load)
 
@@ -198,6 +207,29 @@ def get_schedule(season: int) -> List[Game]:
 
 def get_roster(season: int) -> List[Player]:
     return _roster_cache.get(lambda: fetch_panthers_roster(season), key=season)
+
+
+def get_standings(season: int) -> Standings:
+    """The division table, falling back to last season before kickoff.
+
+    ESPN publishes the coming season's standings months early with every team
+    at 0-0; showing that is worse than showing the season that just finished,
+    so an all-zero table is replaced by the previous one and flagged final.
+    """
+
+    def load() -> Standings:
+        standings = fetch_standings(season)
+        if not standings_are_empty(standings):
+            # A past season's numbers are done changing; the current one's aren't.
+            standings.final = season < current_season()
+            return standings
+
+        logger.info("Season %d hasn't started; using %d standings", season, season - 1)
+        previous = fetch_standings(season - 1)
+        previous.final = True
+        return previous
+
+    return _standings_cache.get(load, key=season)
 
 
 def get_article_content(article_id: str) -> ArticleContent:
@@ -250,6 +282,15 @@ def schedule(
     return get_schedule(season or current_season())
 
 
+@app.get("/api/standings", response_model=Standings)
+def standings(
+    season: Optional[int] = Query(
+        None, ge=2000, le=2100, description="Season year; defaults to the current one."
+    ),
+) -> Standings:
+    return get_standings(season or current_season())
+
+
 @app.get("/api/roster", response_model=List[Player])
 def roster() -> List[Player]:
     return get_roster(current_season())
@@ -262,6 +303,7 @@ def health() -> dict:
         "cache_age_seconds": _articles_cache.age_seconds(),
         "cached_articles": _articles_cache.size(),
         "schedule_cache_age_seconds": _schedule_cache.age_seconds(current_season()),
+        "standings_cache_age_seconds": _standings_cache.age_seconds(current_season()),
         "cached_games": _schedule_cache.size(current_season()),
         "cached_players": _roster_cache.size(current_season()),
         "cached_article_bodies": _content_cache.entry_count(),

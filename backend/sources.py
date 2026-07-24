@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 import feedparser
 
-from models import Article, Game, Player
+from models import Article, Game, Player, Standings, TeamStanding
 
 logger = logging.getLogger(__name__)
 
@@ -455,6 +455,108 @@ def fetch_panthers_schedule(season: int) -> List[Game]:
     schedule = _with_bye_weeks(games)
     logger.info("Fetched %d games for the %d season", len(games), season)
     return schedule
+
+
+# --- Standings (ESPN public league endpoint) ---------------------------------
+ESPN_STANDINGS_URL = "https://site.api.espn.com/apis/v2/sports/football/nfl/standings"
+# level=3 nests conference -> division -> entries; anything shallower loses the
+# division split we need.
+_STANDINGS_LEVEL = 3
+_DIVISION_NAME = "NFC South"
+
+
+def _standing_stats(entry: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """Index one entry's flat stats list by name."""
+    return {s["name"]: s for s in entry.get("stats") or [] if s.get("name")}
+
+
+def _stat_int(stats: Dict[str, Dict[str, Any]], name: str) -> Optional[int]:
+    try:
+        return int(float(stats[name]["value"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _stat_text(stats: Dict[str, Dict[str, Any]], name: str) -> Optional[str]:
+    value = (stats.get(name) or {}).get("displayValue")
+    return value or None
+
+
+def _entry_to_standing(entry: Dict[str, Any]) -> Optional[TeamStanding]:
+    """Adapter: map one standings entry onto the normalized TeamStanding.
+
+    Returns None for entries we can't make sense of rather than failing the
+    whole table over a single malformed one.
+    """
+    team = entry.get("team") or {}
+    abbreviation = team.get("abbreviation")
+    if not abbreviation:
+        return None
+
+    stats = _standing_stats(entry)
+    wins = _stat_int(stats, "wins") or 0
+    losses = _stat_int(stats, "losses") or 0
+    ties = _stat_int(stats, "ties") or 0
+
+    return TeamStanding(
+        team_id=str(team.get("id") or abbreviation),
+        name=team.get("displayName") or abbreviation,
+        abbreviation=abbreviation,
+        logo=_logo(team),
+        wins=wins,
+        losses=losses,
+        ties=ties,
+        # Ties are rare enough that showing "8-9-0" every week would be noise.
+        record=f"{wins}-{losses}-{ties}" if ties else f"{wins}-{losses}",
+        win_pct=_stat_text(stats, "winPercent"),
+        streak=_stat_text(stats, "streak"),
+        points_for=_stat_int(stats, "pointsFor"),
+        points_against=_stat_int(stats, "pointsAgainst"),
+        division_record=_stat_text(stats, "divisionRecord"),
+        playoff_seed=_stat_int(stats, "playoffSeed"),
+        clinched=_stat_text(stats, "clincher"),
+        panthers=abbreviation.upper() == _TEAM_ABBR,
+    )
+
+
+def fetch_standings(season: int) -> Standings:
+    """Fetch the NFC South table plus every team's record, in one request.
+
+    ESPN returns division entries already ordered by its own tiebreakers, so
+    the order here is preserved rather than recomputed.
+    """
+    query = urllib.parse.urlencode({"season": season, "level": _STANDINGS_LEVEL})
+    payload = _fetch_espn_json(f"{ESPN_STANDINGS_URL}?{query}")
+
+    division: List[TeamStanding] = []
+    league: Dict[str, TeamStanding] = {}
+
+    for conference in payload.get("children") or []:
+        for group in conference.get("children") or []:
+            entries = (group.get("standings") or {}).get("entries") or []
+            standings = [s for s in (_entry_to_standing(e) for e in entries) if s]
+            for standing in standings:
+                league[standing.abbreviation.upper()] = standing
+            if group.get("name") == _DIVISION_NAME:
+                division = standings
+
+    if not division:
+        raise RuntimeError(f"No {_DIVISION_NAME} standings for season {season}")
+
+    logger.info("Fetched standings for %d teams in the %d season", len(league), season)
+    return Standings(season=season, division=division, league=league)
+
+
+def standings_are_empty(standings: Standings) -> bool:
+    """True when no games have been played yet, i.e. every team sits at 0-0.
+
+    ESPN publishes the coming season's table months early, filled with zeros;
+    callers use this to fall back to the last completed season.
+    """
+    return all(
+        team.wins == 0 and team.losses == 0 and team.ties == 0
+        for team in standings.division
+    )
 
 
 # --- Roster (ESPN public team endpoint) --------------------------------------
