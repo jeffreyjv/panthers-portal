@@ -21,7 +21,16 @@ from typing import Any, Dict, List, Optional
 
 import feedparser
 
-from models import Article, Game, Injury, Player, Standings, TeamStanding
+from models import (
+    Article,
+    Game,
+    GameLine,
+    Injury,
+    Player,
+    SeasonFutures,
+    Standings,
+    TeamStanding,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -401,6 +410,9 @@ def _event_to_game(event: Dict[str, Any]) -> Optional[Game]:
 
     return Game(
         week=int(week),
+        # Carried so the odds lookup can address this game directly; ESPN keys
+        # its betting endpoints on the event, not the week.
+        event_id=str(event["id"]) if event.get("id") else None,
         kickoff=_parse_espn_datetime(competition.get("date") or event.get("date")),
         opponent=opponent_team.get("displayName"),
         opponent_abbr=opponent_team.get("abbreviation"),
@@ -711,7 +723,7 @@ _INJURY_STATUS_ORDER = (
 _UNSPECIFIED = {"not specified", "unknown", "none", ""}
 
 
-def _injury_text(value: Any) -> Optional[str]:
+def _clean_text(value: Any) -> Optional[str]:
     """Trim one of ESPN's detail strings, dropping its placeholders."""
     text = str(value or "").strip()
     return None if text.lower() in _UNSPECIFIED else text
@@ -731,7 +743,7 @@ def _entry_to_injury(entry: Dict[str, Any]) -> Optional[Injury]:
     """Adapter: map one ESPN injury entry onto the normalized Injury model."""
     athlete = entry.get("athlete") or {}
     name = athlete.get("displayName") or athlete.get("fullName")
-    status = _injury_text(entry.get("status"))
+    status = _clean_text(entry.get("status"))
     if not name or not status:
         return None
 
@@ -747,10 +759,10 @@ def _entry_to_injury(entry: Dict[str, Any]) -> Optional[Injury]:
         status=status,
         # ESPN splits the injury across two fields: `type` is the body part
         # ("Knee") and `detail` is what happened to it ("Soreness").
-        body_part=_injury_text(details.get("type")),
-        detail=_injury_text(details.get("detail")),
+        body_part=_clean_text(details.get("type")),
+        detail=_clean_text(details.get("detail")),
         return_date=_parse_espn_datetime(details.get("returnDate")),
-        comment=_injury_text(entry.get("shortComment")),
+        comment=_clean_text(entry.get("shortComment")),
         updated_at=_parse_espn_datetime(entry.get("date")),
         url=_athlete_link(athlete),
     )
@@ -795,3 +807,109 @@ def fetch_injuries() -> List[Injury]:
     # missing from the document altogether is not, and should not be cached as
     # "everyone is healthy".
     raise RuntimeError("Carolina not found in ESPN injuries response")
+
+
+# --- Odds (ESPN's betting endpoints, which relay the sportsbooks) ------------
+ESPN_ODDS_URL = (
+    "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl"
+    "/events/{event}/competitions/{event}/odds"
+)
+ESPN_FUTURES_URL = (
+    "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl"
+    "/seasons/{season}/futures?limit=100"
+)
+
+# ESPN's futures market ids, mapped onto the fields we keep. Matching on id
+# rather than name: the names are inconsistent ("Pro Football (N) South
+# Division" against "NFL - Super Bowl Winner") and read like internal labels.
+_FUTURES_MARKETS = {
+    3908: "division",  # NFC South
+    3904: "conference",  # NFC
+    1561: "super_bowl",
+}
+
+_TEAM_REF_PATTERN = re.compile(r"/teams/(\d+)")
+
+
+def _signed_spread(spread: Optional[float], favorite: bool) -> Optional[str]:
+    """Carolina's side of the spread, as a book would print it.
+
+    ESPN reports the spread unsigned and marks the favourite separately, so the
+    sign has to be put back on before this means anything to a reader.
+    """
+    if spread is None:
+        return None
+    points = abs(float(spread))
+    # "-3" rather than "-3.0"; half-points keep their decimal.
+    text = f"{points:g}"
+    return f"-{text}" if favorite else f"+{text}"
+
+
+def _money_line(side: Dict[str, Any]) -> Optional[int]:
+    value = side.get("moneyLine")
+    return int(value) if isinstance(value, (int, float)) else None
+
+
+def fetch_game_odds(event_id: str, week: int, panthers_home: bool) -> Optional[GameLine]:
+    """The line on one game, from whichever book ESPN ranks first.
+
+    Returns None when no book has posted it yet, which is the normal state for
+    a game months out — that is an empty strip, not an error.
+    """
+    payload = _fetch_espn_json(ESPN_ODDS_URL.format(event=event_id))
+
+    items = payload.get("items") or []
+    if not items:
+        return None
+    odds = items[0]
+
+    ours = odds.get("homeTeamOdds" if panthers_home else "awayTeamOdds") or {}
+    theirs = odds.get("awayTeamOdds" if panthers_home else "homeTeamOdds") or {}
+    favorite = bool(ours.get("favorite"))
+
+    over_under = odds.get("overUnder")
+
+    return GameLine(
+        week=week,
+        provider=(odds.get("provider") or {}).get("name") or "Sportsbook",
+        details=_clean_text(odds.get("details")),
+        over_under=float(over_under) if isinstance(over_under, (int, float)) else None,
+        spread=_signed_spread(odds.get("spread"), favorite),
+        money_line=_money_line(ours),
+        opponent_money_line=_money_line(theirs),
+        favorite=favorite,
+    )
+
+
+def fetch_futures(season: int) -> Optional[SeasonFutures]:
+    """Carolina's division, conference and Super Bowl prices.
+
+    One request covers every market; each is scanned for the Panthers' row and
+    skipped when they aren't quoted in it.
+    """
+    payload = _fetch_espn_json(ESPN_FUTURES_URL.format(season=season))
+
+    provider: Optional[str] = None
+    prices: Dict[str, str] = {}
+
+    for market in payload.get("items") or []:
+        field = _FUTURES_MARKETS.get(market.get("id"))
+        if field is None:
+            continue
+
+        for book in market.get("futures") or []:
+            for entry in book.get("books") or []:
+                ref = (entry.get("team") or {}).get("$ref", "")
+                match = _TEAM_REF_PATTERN.search(ref)
+                if not match or match.group(1) != str(_ESPN_TEAM_ID):
+                    continue
+                value = _clean_text(entry.get("value"))
+                if value:
+                    prices.setdefault(field, value)
+                    provider = provider or (book.get("provider") or {}).get("name")
+
+    if not prices:
+        return None
+
+    logger.info("Fetched %d futures market(s)", len(prices))
+    return SeasonFutures(provider=provider or "Sportsbook", **prices)

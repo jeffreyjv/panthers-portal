@@ -58,6 +58,39 @@ export interface Injury {
   url: string | null;
 }
 
+export interface GameLine {
+  week: number;
+  provider: string;
+  /** The book's own phrasing, e.g. "CHI -2.5". */
+  details: string | null;
+  over_under: number | null;
+  /** Signed from Carolina's side: "-3.5" favoured, "+2.5" getting points. */
+  spread: string | null;
+  money_line: number | null;
+  opponent_money_line: number | null;
+  favorite: boolean;
+}
+
+export interface SeasonFutures {
+  provider: string;
+  division: string | null;
+  conference: string | null;
+  super_bowl: string | null;
+}
+
+export interface Odds {
+  season: number;
+  futures: SeasonFutures | null;
+  /** Keyed by week number. Games no book has priced are simply absent. */
+  lines: Record<string, GameLine>;
+}
+
+/** American odds always carry their sign; +124 without the plus reads as 124. */
+export function americanOdds(value: number | null): string | null {
+  if (value === null) return null;
+  return value > 0 ? `+${value}` : `${value}`;
+}
+
 export interface Game {
   week: number;
   bye: boolean;
@@ -145,6 +178,7 @@ export const peekSchedule = () => peek<Game[]>("schedule");
 export const peekRoster = () => peek<Player[]>("roster");
 export const peekStandings = () => peek<Standings>("standings");
 export const peekInjuries = () => peek<Injury[]>("injuries");
+export const peekOdds = () => peek<Odds>("odds");
 export const peekArticleContent = (id: string) =>
   peek<ArticleContent>(`content:${id}`);
 
@@ -233,6 +267,10 @@ export function fetchStandings(): Promise<Standings> {
 
 export function fetchInjuries(): Promise<Injury[]> {
   return cached("injuries", () => getJSON<Injury[]>("/api/injuries"));
+}
+
+export function fetchOdds(): Promise<Odds> {
+  return cached("odds", () => getJSON<Odds>("/api/odds"));
 }
 
 // --- Talk --------------------------------------------------------------------

@@ -62,6 +62,8 @@ class Game(BaseModel):
 
     week: int
     bye: bool = False
+    # ESPN's event id, which the odds endpoints are keyed on. None for byes.
+    event_id: Optional[str] = None
     kickoff: Optional[datetime] = None
     opponent: Optional[str] = None
     opponent_abbr: Optional[str] = None
@@ -76,6 +78,50 @@ class Game(BaseModel):
     # "W" | "L" | "T", set only once the game is final.
     outcome: Optional[str] = None
     url: Optional[str] = None
+
+
+class GameLine(BaseModel):
+    """The betting line on one game, from a single sportsbook.
+
+    Every number is oriented to Carolina: a `spread` of "+2.5" means the
+    Panthers are getting points. The book's own `details` string ("CHI -2.5")
+    is kept verbatim, since that is the phrasing a bettor recognizes.
+    """
+
+    week: int
+    provider: str
+    details: Optional[str] = None
+    over_under: Optional[float] = None
+    # Signed from Carolina's side: "-3.5" when favoured, "+2.5" when not.
+    spread: Optional[str] = None
+    # American odds. Kept as ints so the sign survives; the client formats them.
+    money_line: Optional[int] = None
+    opponent_money_line: Optional[int] = None
+    favorite: bool = False
+
+
+class SeasonFutures(BaseModel):
+    """Carolina's futures prices, as the American odds strings books quote."""
+
+    provider: str
+    division: Optional[str] = None
+    conference: Optional[str] = None
+    super_bowl: Optional[str] = None
+
+
+class Odds(BaseModel):
+    """Every price the schedule shows, in one payload.
+
+    The two halves are fetched independently: futures thin out as a season runs
+    on, and a book may not have posted a game months away. Either one missing
+    leaves the other rendering.
+    """
+
+    season: int
+    futures: Optional[SeasonFutures] = None
+    # Keyed by week. Only games a book has actually priced appear, so a row
+    # with no entry renders exactly as it did before odds existed.
+    lines: Dict[int, GameLine] = {}
 
 
 class Injury(BaseModel):

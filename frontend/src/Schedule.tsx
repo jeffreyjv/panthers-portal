@@ -1,18 +1,24 @@
 import { useEffect, useState } from "react";
 import {
   Game,
+  GameLine,
+  Odds,
   Standings,
+  americanOdds,
   divisionRank,
+  fetchOdds,
   fetchSchedule,
   fetchStandings,
   gameDate,
   gameTime,
+  peekOdds,
   peekSchedule,
   peekStandings,
 } from "./api";
 import { ClawMark } from "./ClawMark";
 import { DivisionStrip } from "./DivisionStrip";
 import { Injuries } from "./Injuries";
+import { SeasonOdds } from "./Odds";
 
 type Status = "loading" | "error" | "ready";
 
@@ -25,12 +31,31 @@ function record(games: Game[]): string | null {
   return ties > 0 ? `${base}-${ties}` : base;
 }
 
+/** The line on one game, condensed to fit inside a schedule row.
+ *
+ * Panthers-oriented: "+2.5" means they're getting points. The moneyline is
+ * dropped on narrow screens by CSS — spread and total are the two numbers
+ * worth the width.
+ */
+function GameOdds({ line }: { line: GameLine }) {
+  const money = americanOdds(line.money_line);
+  return (
+    <span className="game-odds" title={`${line.provider} line`}>
+      {line.spread && <span className="game-odds-spread">{line.spread}</span>}
+      {line.over_under !== null && <span>O/U {line.over_under}</span>}
+      {money && <span className="game-odds-money">CAR {money}</span>}
+    </span>
+  );
+}
+
 function GameRow({
   game,
   standings,
+  line,
 }: {
   game: Game;
   standings: Standings | null;
+  line: GameLine | undefined;
 }) {
   if (game.bye) {
     return (
@@ -72,6 +97,7 @@ function GameRow({
             {opponent.record}
           </span>
         )}
+        {line && <GameOdds line={line} />}
       </div>
       {game.outcome ? (
         <span className={`game-result outcome-${game.outcome.toLowerCase()}`}>
@@ -127,6 +153,7 @@ export function Schedule() {
   const [standings, setStandings] = useState<Standings | null>(
     peekStandings() ?? null,
   );
+  const [odds, setOdds] = useState<Odds | null>(peekOdds() ?? null);
 
   useEffect(() => {
     let active = true;
@@ -146,6 +173,14 @@ export function Schedule() {
     fetchStandings()
       .then((data) => {
         if (active) setStandings(data);
+      })
+      .catch(() => {});
+
+    // Odds are enrichment on the same terms: a failure leaves the rows bare
+    // rather than putting an error in front of the schedule.
+    fetchOdds()
+      .then((data) => {
+        if (active) setOdds(data);
       })
       .catch(() => {});
 
@@ -183,11 +218,17 @@ export function Schedule() {
         <span className="section-rule" />
       </div>
       {standings && <DivisionStrip standings={standings} />}
+      {odds?.futures && <SeasonOdds futures={odds.futures} />}
       <ul className="game-list">
         {status === "loading"
           ? Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
           : games.map((game) => (
-              <GameRow key={game.week} game={game} standings={standings} />
+              <GameRow
+                key={game.week}
+                game={game}
+                standings={standings}
+                line={odds?.lines[game.week]}
+              />
             ))}
       </ul>
       <Injuries />

@@ -11,6 +11,7 @@ import re
 import threading
 import time
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -33,7 +34,9 @@ from models import (
     CurrentUser,
     Feed,
     Game,
+    GameLine,
     Injury,
+    Odds,
     Player,
     Post,
     PostAuthor,
@@ -46,6 +49,8 @@ from sources import (
     current_season,
     fetch_article_body,
     fetch_espn_articles,
+    fetch_futures,
+    fetch_game_odds,
     fetch_injuries,
     fetch_panthers_articles,
     fetch_panthers_roster,
@@ -71,6 +76,14 @@ ROSTER_CACHE_TTL_SECONDS = int(os.getenv("ROSTER_CACHE_TTL_SECONDS", "3600"))
 # The injury report turns over faster than the roster — practice reports land
 # through the afternoon — but nowhere near as fast as the news feed.
 INJURY_CACHE_TTL_SECONDS = int(os.getenv("INJURY_CACHE_TTL_SECONDS", "900"))
+# Lines move continuously, but this is a fan page showing roughly where the
+# market sits, not a live betting screen — nobody should be acting on the last
+# refresh of it either way.
+ODDS_CACHE_TTL_SECONDS = int(os.getenv("ODDS_CACHE_TTL_SECONDS", "900"))
+# ESPN prices one game per request, so a cold cache means ~17 of them. Fetched
+# through a small pool: enough to keep that off the critical path, low enough
+# not to arrive at ESPN as a burst.
+ODDS_FETCH_WORKERS = int(os.getenv("ODDS_FETCH_WORKERS", "6"))
 # Published article bodies effectively never change.
 CONTENT_CACHE_TTL_SECONDS = int(os.getenv("CONTENT_CACHE_TTL_SECONDS", "86400"))
 CONTENT_CACHE_MAX_ENTRIES = int(os.getenv("CONTENT_CACHE_MAX_ENTRIES", "200"))
@@ -166,6 +179,7 @@ _standings_cache = ReadThroughCache(
 _injuries_cache = ReadThroughCache(
     "injuries", INJURY_CACHE_TTL_SECONDS, "Injury report unavailable"
 )
+_odds_cache = ReadThroughCache("odds", ODDS_CACHE_TTL_SECONDS, "Odds unavailable")
 _content_cache = ReadThroughCache(
     "content",
     CONTENT_CACHE_TTL_SECONDS,
@@ -242,6 +256,62 @@ def get_roster(season: int) -> List[Player]:
 
 def get_injuries() -> List[Injury]:
     return _injuries_cache.get(fetch_injuries)
+
+
+def _load_lines(season: int) -> Dict[int, GameLine]:
+    """The line on every game still to be played, keyed by week.
+
+    ESPN prices one event per request, so this is a fan-out — hence the pool.
+    Games already final are skipped: their result is on the row, which is more
+    than the closing line was ever going to tell anyone.
+
+    A single game failing is dropped rather than raised. One unpriced event
+    should cost that row its odds, not the whole schedule its strip.
+    """
+    games = [
+        game
+        for game in get_schedule(season)
+        if not game.bye and game.event_id and game.status != "final"
+    ]
+    if not games:
+        return {}
+
+    lines: Dict[int, GameLine] = {}
+    with ThreadPoolExecutor(max_workers=ODDS_FETCH_WORKERS) as pool:
+        futures = {
+            pool.submit(
+                fetch_game_odds, game.event_id, game.week, bool(game.home)
+            ): game
+            for game in games
+        }
+        for future in as_completed(futures):
+            game = futures[future]
+            try:
+                line = future.result()
+            except RuntimeError:
+                logger.exception("Odds unavailable for week %d", game.week)
+                continue
+            if line is not None:
+                lines[game.week] = line
+
+    logger.info("Fetched lines for %d of %d game(s)", len(lines), len(games))
+    return lines
+
+
+def get_odds() -> Odds:
+    """Carolina's season futures plus a line on each remaining game."""
+    season = current_season()
+
+    def load() -> Odds:
+        try:
+            season_futures = fetch_futures(season)
+        except RuntimeError:
+            logger.exception("Futures unavailable for season %d", season)
+            season_futures = None
+
+        return Odds(season=season, futures=season_futures, lines=_load_lines(season))
+
+    return _odds_cache.get(load, key=season)
 
 
 def get_standings(season: int) -> Standings:
@@ -577,6 +647,11 @@ def injuries() -> List[Injury]:
     return get_injuries()
 
 
+@app.get("/api/odds", response_model=Odds)
+def odds() -> Odds:
+    return get_odds()
+
+
 @app.get("/api/health")
 def health() -> dict:
     return {
@@ -589,6 +664,7 @@ def health() -> dict:
         "cached_players": _roster_cache.size(current_season()),
         "injuries_cache_age_seconds": _injuries_cache.age_seconds(),
         "cached_injuries": _injuries_cache.size(),
+        "odds_cache_age_seconds": _odds_cache.age_seconds(current_season()),
         "cached_article_bodies": _content_cache.entry_count(),
         # Talk's schema came up at startup; `database` is checked live, so a
         # Neon instance that went away since boot shows here.
