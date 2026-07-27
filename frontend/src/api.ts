@@ -41,6 +41,23 @@ export interface Player {
   depth_position: string | null;
 }
 
+export interface Injury {
+  id: string;
+  name: string;
+  position: string | null;
+  headshot: string | null;
+  /** "Out" | "Doubtful" | "Questionable" | "Injured Reserve" | ... */
+  status: string;
+  /** The body part: "Knee", "Hamstring", "Undisclosed". */
+  body_part: string | null;
+  /** What happened to it: "Soreness", "Surgery". Null when unspecified. */
+  detail: string | null;
+  return_date: string | null;
+  comment: string | null;
+  updated_at: string | null;
+  url: string | null;
+}
+
 export interface Game {
   week: number;
   bye: boolean;
@@ -127,6 +144,7 @@ export const peekArticles = () => peek<Article[]>("articles");
 export const peekSchedule = () => peek<Game[]>("schedule");
 export const peekRoster = () => peek<Player[]>("roster");
 export const peekStandings = () => peek<Standings>("standings");
+export const peekInjuries = () => peek<Injury[]>("injuries");
 export const peekArticleContent = (id: string) =>
   peek<ArticleContent>(`content:${id}`);
 
@@ -211,6 +229,10 @@ export function fetchRoster(): Promise<Player[]> {
 
 export function fetchStandings(): Promise<Standings> {
   return cached("standings", () => getJSON<Standings>("/api/standings"));
+}
+
+export function fetchInjuries(): Promise<Injury[]> {
+  return cached("injuries", () => getJSON<Injury[]>("/api/injuries"));
 }
 
 // --- Talk --------------------------------------------------------------------

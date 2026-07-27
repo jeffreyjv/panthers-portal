@@ -33,6 +33,7 @@ from models import (
     CurrentUser,
     Feed,
     Game,
+    Injury,
     Player,
     Post,
     PostAuthor,
@@ -45,6 +46,7 @@ from sources import (
     current_season,
     fetch_article_body,
     fetch_espn_articles,
+    fetch_injuries,
     fetch_panthers_articles,
     fetch_panthers_roster,
     fetch_panthers_schedule,
@@ -66,6 +68,9 @@ NEWS_LIMIT = int(os.getenv("NEWS_LIMIT", "50"))
 # The schedule and roster barely move; refetch far less often than the news feed.
 SCHEDULE_CACHE_TTL_SECONDS = int(os.getenv("SCHEDULE_CACHE_TTL_SECONDS", "3600"))
 ROSTER_CACHE_TTL_SECONDS = int(os.getenv("ROSTER_CACHE_TTL_SECONDS", "3600"))
+# The injury report turns over faster than the roster — practice reports land
+# through the afternoon — but nowhere near as fast as the news feed.
+INJURY_CACHE_TTL_SECONDS = int(os.getenv("INJURY_CACHE_TTL_SECONDS", "900"))
 # Published article bodies effectively never change.
 CONTENT_CACHE_TTL_SECONDS = int(os.getenv("CONTENT_CACHE_TTL_SECONDS", "86400"))
 CONTENT_CACHE_MAX_ENTRIES = int(os.getenv("CONTENT_CACHE_MAX_ENTRIES", "200"))
@@ -158,6 +163,9 @@ _roster_cache = ReadThroughCache(
 _standings_cache = ReadThroughCache(
     "standings", SCHEDULE_CACHE_TTL_SECONDS, "Standings unavailable"
 )
+_injuries_cache = ReadThroughCache(
+    "injuries", INJURY_CACHE_TTL_SECONDS, "Injury report unavailable"
+)
 _content_cache = ReadThroughCache(
     "content",
     CONTENT_CACHE_TTL_SECONDS,
@@ -230,6 +238,10 @@ def get_schedule(season: int) -> List[Game]:
 
 def get_roster(season: int) -> List[Player]:
     return _roster_cache.get(lambda: fetch_panthers_roster(season), key=season)
+
+
+def get_injuries() -> List[Injury]:
+    return _injuries_cache.get(fetch_injuries)
 
 
 def get_standings(season: int) -> Standings:
@@ -560,6 +572,11 @@ def roster() -> List[Player]:
     return get_roster(current_season())
 
 
+@app.get("/api/injuries", response_model=List[Injury])
+def injuries() -> List[Injury]:
+    return get_injuries()
+
+
 @app.get("/api/health")
 def health() -> dict:
     return {
@@ -570,6 +587,8 @@ def health() -> dict:
         "standings_cache_age_seconds": _standings_cache.age_seconds(current_season()),
         "cached_games": _schedule_cache.size(current_season()),
         "cached_players": _roster_cache.size(current_season()),
+        "injuries_cache_age_seconds": _injuries_cache.age_seconds(),
+        "cached_injuries": _injuries_cache.size(),
         "cached_article_bodies": _content_cache.entry_count(),
         # Talk's schema came up at startup; `database` is checked live, so a
         # Neon instance that went away since boot shows here.

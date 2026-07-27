@@ -12,6 +12,7 @@ import {
 } from "./api";
 import { ClawMark } from "./ClawMark";
 import { DivisionStrip } from "./DivisionStrip";
+import { Injuries } from "./Injuries";
 
 type Status = "loading" | "error" | "ready";
 
@@ -189,6 +190,7 @@ export function Schedule() {
               <GameRow key={game.week} game={game} standings={standings} />
             ))}
       </ul>
+      <Injuries />
     </>
   );
 }

@@ -78,6 +78,32 @@ class Game(BaseModel):
     url: Optional[str] = None
 
 
+class Injury(BaseModel):
+    """One line on the injury report.
+
+    Everything below `status` is optional because ESPN fills the report in as
+    the week goes on: a player can be listed Out on Wednesday with no body part
+    named and no note attached until Friday.
+    """
+
+    id: str
+    name: str
+    position: Optional[str] = None
+    headshot: Optional[str] = None
+    # "Out" | "Doubtful" | "Questionable" | "Injured Reserve" | ...
+    status: str
+    # The body part, as ESPN words it: "Knee", "Hamstring", "Undisclosed".
+    body_part: Optional[str] = None
+    # What happened to it: "Soreness", "Sprain". None when unspecified — ESPN
+    # sends the string "Not Specified", which is not worth a line on screen.
+    detail: Optional[str] = None
+    return_date: Optional[datetime] = None
+    # ESPN's one-line beat-reporter note on the latest update.
+    comment: Optional[str] = None
+    updated_at: Optional[datetime] = None
+    url: Optional[str] = None
+
+
 class TeamStanding(BaseModel):
     """One team's line in the standings."""
 

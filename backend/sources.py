@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 import feedparser
 
-from models import Article, Game, Player, Standings, TeamStanding
+from models import Article, Game, Injury, Player, Standings, TeamStanding
 
 logger = logging.getLogger(__name__)
 
@@ -691,3 +691,107 @@ def fetch_panthers_roster(season: int) -> List[Player]:
         sum(1 for p in players if p.starter),
     )
     return players
+
+
+# --- Injury report (ESPN public injuries endpoint) ---------------------------
+ESPN_INJURIES_URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/injuries"
+
+# Worst first. This is the order the report reads in; anything ESPN sends that
+# isn't listed here sorts to the bottom rather than being dropped.
+_INJURY_STATUS_ORDER = (
+    "Injured Reserve",
+    "Out",
+    "Doubtful",
+    "Questionable",
+    "Day-To-Day",
+)
+
+# ESPN's placeholders for "we don't know yet". Rendering them verbatim puts
+# "Not Specified" on screen next to a player's name, which reads like a bug.
+_UNSPECIFIED = {"not specified", "unknown", "none", ""}
+
+
+def _injury_text(value: Any) -> Optional[str]:
+    """Trim one of ESPN's detail strings, dropping its placeholders."""
+    text = str(value or "").strip()
+    return None if text.lower() in _UNSPECIFIED else text
+
+
+def _athlete_link(athlete: Dict[str, Any]) -> Optional[str]:
+    """The player-card URL, when ESPN includes one."""
+    for link in athlete.get("links") or []:
+        if "playercard" in (link.get("rel") or []):
+            href = link.get("href")
+            if isinstance(href, str) and href.startswith("http"):
+                return href
+    return None
+
+
+def _entry_to_injury(entry: Dict[str, Any]) -> Optional[Injury]:
+    """Adapter: map one ESPN injury entry onto the normalized Injury model."""
+    athlete = entry.get("athlete") or {}
+    name = athlete.get("displayName") or athlete.get("fullName")
+    status = _injury_text(entry.get("status"))
+    if not name or not status:
+        return None
+
+    details = entry.get("details") or {}
+
+    return Injury(
+        # Falls back to the name so an entry without an id still renders with a
+        # stable React key instead of colliding with every other id-less row.
+        id=str(entry.get("id") or name),
+        name=name,
+        position=(athlete.get("position") or {}).get("abbreviation"),
+        headshot=(athlete.get("headshot") or {}).get("href"),
+        status=status,
+        # ESPN splits the injury across two fields: `type` is the body part
+        # ("Knee") and `detail` is what happened to it ("Soreness").
+        body_part=_injury_text(details.get("type")),
+        detail=_injury_text(details.get("detail")),
+        return_date=_parse_espn_datetime(details.get("returnDate")),
+        comment=_injury_text(entry.get("shortComment")),
+        updated_at=_parse_espn_datetime(entry.get("date")),
+        url=_athlete_link(athlete),
+    )
+
+
+def _injury_sort_key(injury: Injury):
+    status = injury.status
+    rank = (
+        _INJURY_STATUS_ORDER.index(status)
+        if status in _INJURY_STATUS_ORDER
+        else len(_INJURY_STATUS_ORDER)
+    )
+    return (rank, injury.name)
+
+
+def fetch_injuries() -> List[Injury]:
+    """Carolina's injury report, worst status first.
+
+    ESPN publishes all 32 teams in one document, so this costs one request
+    rather than one per player. "Active" entries are filtered out: those are
+    transaction notes (a contract, a return to practice) rather than injuries,
+    and in the offseason they outnumber the report itself.
+    """
+    payload = _fetch_espn_json(ESPN_INJURIES_URL)
+
+    for team in payload.get("injuries") or []:
+        if str(team.get("id")) != str(_ESPN_TEAM_ID):
+            continue
+
+        injuries = [
+            injury
+            for injury in (
+                _entry_to_injury(e) for e in team.get("injuries") or []
+            )
+            if injury is not None and injury.status != "Active"
+        ]
+        injuries.sort(key=_injury_sort_key)
+        logger.info("Fetched %d injuries", len(injuries))
+        return injuries
+
+    # An empty report is a real answer — in June nobody is listed. Carolina
+    # missing from the document altogether is not, and should not be cached as
+    # "everyone is healthy".
+    raise RuntimeError("Carolina not found in ESPN injuries response")
