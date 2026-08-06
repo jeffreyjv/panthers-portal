@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Panthers Portal — device wall</title>
+    <style>
+      /* Dev-only harness. Deliberately shares nothing with the app's stylesheet:
+         if this page inherited the tokens it is meant to be inspecting, a broken
+         --panel would break the frame around the evidence of it being broken. */
+      :root {
+        color-scheme: dark;
+        --bg: #101215;
+        --panel: #191c21;
+        --border: #2a2f37;
+        --ink: #e8eaed;
+        --dim: #8b929c;
+        --blue: #0085ca;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 1.25rem 1.5rem 3rem;
+        background: var(--bg);
+        color: var(--ink);
+        font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, sans-serif;
+      }
+
+      h1 {
+        margin: 0 0 0.15rem;
+        font-size: 1.05rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+
+      .sub {
+        margin: 0 0 1.1rem;
+        color: var(--dim);
+        font-size: 0.8rem;
+      }
+
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem 1.25rem;
+        padding: 0.7rem 0.85rem;
+        margin-bottom: 1.4rem;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+      }
+
+      .group {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+
+      .group-label {
+        margin-right: 0.15rem;
+        color: var(--dim);
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      button {
+        padding: 0.32rem 0.7rem;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: transparent;
+        color: var(--ink);
+        font: inherit;
+        font-size: 0.8rem;
+        cursor: pointer;
+      }
+
+      button:hover {
+        border-color: #3b424c;
+      }
+
+      button[aria-pressed="true"] {
+        background: var(--blue);
+        border-color: var(--blue);
+        color: #fff;
+        font-weight: 600;
+      }
+
+      .wall {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 1.75rem;
+      }
+
+      figure {
+        margin: 0;
+      }
+
+      figcaption {
+        margin-bottom: 0.4rem;
+        color: var(--dim);
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+      }
+
+      figcaption b {
+        color: var(--ink);
+        font-weight: 600;
+        letter-spacing: 0;
+      }
+
+      /* The bezel is 6px of padding, not a border, so the iframe's own width is
+         exactly the device width the caption claims — media queries inside
+         resolve against that, which is the whole point of this page. */
+      .device {
+        padding: 6px;
+        background: #000;
+        border-radius: 26px;
+        box-shadow: 0 0 0 1px var(--border), 0 18px 40px rgb(0 0 0 / 0.5);
+      }
+
+      iframe {
+        display: block;
+        border: 0;
+        border-radius: 20px;
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Panthers Portal — device wall</h1>
+    <p class="sub">
+      Each frame is a real iframe at the device's CSS width, so the app's media
+      queries fire exactly as they would on the phone. What it can't reproduce is
+      the parts that aren't CSS: momentum scrolling, Safari's zoom-on-focus, and
+      a real safe-area inset (the toggle below fakes the last one).
+    </p>
+
+    <div class="controls">
+      <div class="group">
+        <span class="group-label">Tab</span>
+        <button type="button" data-tab="news" aria-pressed="true">News</button>
+        <button type="button" data-tab="live" aria-pressed="false">Live</button>
+        <button type="button" data-tab="schedule" aria-pressed="false">Schedule</button>
+        <button type="button" data-tab="team" aria-pressed="false">Team</button>
+        <button type="button" data-tab="talk" aria-pressed="false">Talk</button>
+      </div>
+      <div class="group">
+        <span class="group-label">Theme</span>
+        <button type="button" data-theme="dark" aria-pressed="true">Dark</button>
+        <button type="button" data-theme="light" aria-pressed="false">Light</button>
+      </div>
+      <div class="group">
+        <span class="group-label">Home indicator</span>
+        <button type="button" id="safe-area" aria-pressed="false">34px inset</button>
+      </div>
+      <div class="group">
+        <button type="button" id="reload">Reload all</button>
+      </div>
+    </div>
+
+    <div class="wall">
+      <figure>
+        <figcaption><b>iPhone SE</b> · 375 × 667</figcaption>
+        <div class="device"><iframe title="iPhone SE" width="375" height="667"></iframe></div>
+      </figure>
+      <figure>
+        <figcaption><b>iPhone 15</b> · 393 × 852</figcaption>
+        <div class="device"><iframe title="iPhone 15" width="393" height="852"></iframe></div>
+      </figure>
+      <figure>
+        <figcaption><b>iPhone 15 Pro Max</b> · 430 × 932</figcaption>
+        <div class="device"><iframe title="iPhone 15 Pro Max" width="430" height="932"></iframe></div>
+      </figure>
+    </div>
+
+    <script>
+      const THEME_KEY = "panthers-portal-theme";
+      const frames = [...document.querySelectorAll("iframe")];
+
+      const state = {
+        tab: "news",
+        theme: localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark",
+        safeArea: false,
+      };
+
+      /* The app reads its theme from localStorage before first paint, and the
+         frames are same-origin, so writing the key here is all it takes — no
+         need to reach into the app or add a query param it would have to know
+         about. */
+      function load() {
+        localStorage.setItem(THEME_KEY, state.theme);
+        for (const frame of frames) {
+          frame.src = `/?tab=${state.tab}#${Date.now()}`;
+        }
+      }
+
+      /* env(safe-area-inset-*) is always 0 in an iframe, so the home-indicator
+         gap has to be faked. Overriding the var the app's rules fall back to
+         won't work (env() isn't a custom property), so this pads the body and
+         lifts anything bottom-fixed by the same amount. */
+      const SAFE_AREA_CSS = `
+        body { padding-bottom: 34px !important; }
+        .tabs { bottom: 34px !important; }
+        body::after {
+          content: "";
+          position: fixed;
+          left: 0; right: 0; bottom: 0;
+          height: 34px;
+          background: repeating-linear-gradient(
+            45deg, rgb(255 0 90 / .18) 0 6px, transparent 6px 12px);
+          pointer-events: none;
+          z-index: 99999;
+        }`;
+
+      function applySafeArea(frame) {
+        const doc = frame.contentDocument;
+        if (!doc) return;
+        let style = doc.getElementById("devicewall-safe-area");
+        if (!state.safeArea) {
+          style?.remove();
+          return;
+        }
+        if (!style) {
+          style = doc.createElement("style");
+          style.id = "devicewall-safe-area";
+          doc.head.appendChild(style);
+        }
+        style.textContent = SAFE_AREA_CSS;
+      }
+
+      for (const frame of frames) {
+        frame.addEventListener("load", () => applySafeArea(frame));
+      }
+
+      function setPressed(selector, value, attr) {
+        for (const button of document.querySelectorAll(selector)) {
+          button.setAttribute(
+            "aria-pressed",
+            String(button.dataset[attr] === value)
+          );
+        }
+      }
+
+      document.querySelector(".controls").addEventListener("click", (event) => {
+        const button = event.target.closest("button");
+        if (!button) return;
+
+        if (button.dataset.tab) {
+          state.tab = button.dataset.tab;
+          setPressed("[data-tab]", state.tab, "tab");
+          load();
+        } else if (button.dataset.theme) {
+          state.theme = button.dataset.theme;
+          setPressed("[data-theme]", state.theme, "theme");
+          load();
+        } else if (button.id === "safe-area") {
+          state.safeArea = !state.safeArea;
+          button.setAttribute("aria-pressed", String(state.safeArea));
+          frames.forEach(applySafeArea);
+        } else if (button.id === "reload") {
+          load();
+        }
+      });
+
+      setPressed("[data-theme]", state.theme, "theme");
+      load();
+    </script>
+  </body>
+</html>

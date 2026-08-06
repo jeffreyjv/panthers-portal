@@ -1,0 +1,660 @@
+{
+  "event_id": "fixture-1",
+  "season": 2026,
+  "season_type": 2,
+  "season_label": "Regular Season",
+  "week": 5,
+  "name": "Atlanta Falcons at Carolina Panthers",
+  "short_name": "ATL @ CAR",
+  "state": "in",
+  "completed": false,
+  "status_detail": "7:12 - 3rd Quarter",
+  "period": 3,
+  "clock": "7:12",
+  "kickoff": "2026-10-11T17:00:00Z",
+  "venue": "Bank of America Stadium",
+  "venue_city": "Charlotte",
+  "venue_state": "NC",
+  "attendance": 74112,
+  "broadcast": "FOX",
+  "temperature": 68,
+  "precipitation": 10,
+  "line": "CAR -2.5",
+  "over_under": 44.5,
+  "panthers": {
+    "id": "29",
+    "abbreviation": "CAR",
+    "name": "Carolina Panthers",
+    "short_name": "Panthers",
+    "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/car.png",
+    "score": 17,
+    "record": "3-1",
+    "linescores": [
+      7,
+      3,
+      7,
+      null
+    ],
+    "panthers": true,
+    "home": true
+  },
+  "opponent": {
+    "id": "1",
+    "abbreviation": "ATL",
+    "name": "Atlanta Falcons",
+    "short_name": "Falcons",
+    "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/atl.png",
+    "score": 20,
+    "record": "2-2",
+    "linescores": [
+      3,
+      10,
+      7,
+      null
+    ],
+    "panthers": false,
+    "home": false
+  },
+  "situation": {
+    "possession": "CAR",
+    "down_distance": "2nd & 7 at ATL 34",
+    "short_down_distance": "2nd & 7",
+    "spot": "ATL 34",
+    "yards_to_endzone": 34,
+    "last_play": "B. Young pass short right to X. Legette for 9 yards",
+    "red_zone": false,
+    "panthers_timeouts": 2,
+    "opponent_timeouts": 3
+  },
+  "team_stats": [
+    {
+      "key": "totalYards",
+      "label": "Total yards",
+      "panthers_display": "312",
+      "opponent_display": "345",
+      "panthers_value": 312,
+      "opponent_value": 345
+    },
+    {
+      "key": "passingYards",
+      "label": "Passing yards",
+      "panthers_display": "224",
+      "opponent_display": "198",
+      "panthers_value": 224,
+      "opponent_value": 198
+    },
+    {
+      "key": "rushingYards",
+      "label": "Rushing yards",
+      "panthers_display": "88",
+      "opponent_display": "147",
+      "panthers_value": 88,
+      "opponent_value": 147
+    },
+    {
+      "key": "firstDowns",
+      "label": "First downs",
+      "panthers_display": "17",
+      "opponent_display": "19",
+      "panthers_value": 17,
+      "opponent_value": 19
+    },
+    {
+      "key": "thirdDown",
+      "label": "3rd down",
+      "panthers_display": "5-11",
+      "opponent_display": "7-13",
+      "panthers_value": 45.5,
+      "opponent_value": 53.8
+    },
+    {
+      "key": "possession",
+      "label": "Possession",
+      "panthers_display": "14:22",
+      "opponent_display": "16:26",
+      "panthers_value": 862,
+      "opponent_value": 986
+    },
+    {
+      "key": "turnovers",
+      "label": "Turnovers",
+      "panthers_display": "1",
+      "opponent_display": "2",
+      "panthers_value": 1,
+      "opponent_value": 2
+    },
+    {
+      "key": "penaltyYards",
+      "label": "Penalty yards",
+      "panthers_display": "45",
+      "opponent_display": "30",
+      "panthers_value": 45,
+      "opponent_value": 30
+    }
+  ],
+  "scoring_plays": [
+    {
+      "id": "s1",
+      "period": 1,
+      "clock": "9:41",
+      "team_abbr": "CAR",
+      "panthers": true,
+      "text": "C. Hubbard 4 yd run (E. Pineiro kick)",
+      "type_abbr": "TD",
+      "panthers_score": 7,
+      "opponent_score": 0
+    },
+    {
+      "id": "s2",
+      "period": 1,
+      "clock": "2:18",
+      "team_abbr": "ATL",
+      "panthers": false,
+      "text": "Y. Koo 38 yd field goal",
+      "type_abbr": "FG",
+      "panthers_score": 7,
+      "opponent_score": 3
+    },
+    {
+      "id": "s3",
+      "period": 2,
+      "clock": "11:03",
+      "team_abbr": "ATL",
+      "panthers": false,
+      "text": "B. Robinson 22 yd run (Y. Koo kick)",
+      "type_abbr": "TD",
+      "panthers_score": 7,
+      "opponent_score": 10
+    },
+    {
+      "id": "s4",
+      "period": 2,
+      "clock": "4:47",
+      "team_abbr": "CAR",
+      "panthers": true,
+      "text": "E. Pineiro 45 yd field goal",
+      "type_abbr": "FG",
+      "panthers_score": 10,
+      "opponent_score": 10
+    },
+    {
+      "id": "s5",
+      "period": 2,
+      "clock": "0:31",
+      "team_abbr": "ATL",
+      "panthers": false,
+      "text": "Y. Koo 51 yd field goal",
+      "type_abbr": "FG",
+      "panthers_score": 10,
+      "opponent_score": 13
+    },
+    {
+      "id": "s6",
+      "period": 3,
+      "clock": "12:55",
+      "team_abbr": "CAR",
+      "panthers": true,
+      "text": "X. Legette 31 yd pass from B. Young (E. Pineiro kick)",
+      "type_abbr": "TD",
+      "panthers_score": 17,
+      "opponent_score": 13
+    },
+    {
+      "id": "s7",
+      "period": 3,
+      "clock": "8:04",
+      "team_abbr": "ATL",
+      "panthers": false,
+      "text": "D. London 12 yd pass from M. Penix Jr. (Y. Koo kick)",
+      "type_abbr": "TD",
+      "panthers_score": 17,
+      "opponent_score": 20
+    }
+  ],
+  "drives": [
+    {
+      "id": "d1",
+      "team_abbr": "CAR",
+      "panthers": true,
+      "description": "9 plays, 75 yards",
+      "result": "Touchdown",
+      "period": 1,
+      "plays": 9,
+      "yards": 75,
+      "is_score": true,
+      "start_yard": 25,
+      "end_yard": 100,
+      "start_text": "CAR 25",
+      "end_text": "CAR 100",
+      "time_elapsed": "3:11"
+    },
+    {
+      "id": "d2",
+      "team_abbr": "ATL",
+      "panthers": false,
+      "description": "3 plays, 5 yards",
+      "result": "Punt",
+      "period": 1,
+      "plays": 3,
+      "yards": 5,
+      "is_score": false,
+      "start_yard": 22,
+      "end_yard": 27,
+      "start_text": "ATL 22",
+      "end_text": "ATL 27",
+      "time_elapsed": "3:12"
+    },
+    {
+      "id": "d3",
+      "team_abbr": "CAR",
+      "panthers": true,
+      "description": "5 plays, 18 yards",
+      "result": "Punt",
+      "period": 1,
+      "plays": 5,
+      "yards": 18,
+      "is_score": false,
+      "start_yard": 20,
+      "end_yard": 38,
+      "start_text": "CAR 20",
+      "end_text": "CAR 38",
+      "time_elapsed": "3:13"
+    },
+    {
+      "id": "d4",
+      "team_abbr": "ATL",
+      "panthers": false,
+      "description": "11 plays, 54 yards",
+      "result": "Field Goal",
+      "period": 1,
+      "plays": 11,
+      "yards": 54,
+      "is_score": true,
+      "start_yard": 25,
+      "end_yard": 79,
+      "start_text": "ATL 25",
+      "end_text": "ATL 79",
+      "time_elapsed": "3:14"
+    },
+    {
+      "id": "d5",
+      "team_abbr": "CAR",
+      "panthers": true,
+      "description": "4 plays, 12 yards",
+      "result": "Interception",
+      "period": 2,
+      "plays": 4,
+      "yards": 12,
+      "is_score": false,
+      "start_yard": 30,
+      "end_yard": 42,
+      "start_text": "CAR 30",
+      "end_text": "CAR 42",
+      "time_elapsed": "3:15"
+    },
+    {
+      "id": "d6",
+      "team_abbr": "ATL",
+      "panthers": false,
+      "description": "6 plays, 48 yards",
+      "result": "Touchdown",
+      "period": 2,
+      "plays": 6,
+      "yards": 48,
+      "is_score": true,
+      "start_yard": 48,
+      "end_yard": 100,
+      "start_text": "ATL 48",
+      "end_text": "ATL 100",
+      "time_elapsed": "3:16"
+    },
+    {
+      "id": "d7",
+      "team_abbr": "CAR",
+      "panthers": true,
+      "description": "8 plays, 41 yards",
+      "result": "Field Goal",
+      "period": 2,
+      "plays": 8,
+      "yards": 41,
+      "is_score": true,
+      "start_yard": 28,
+      "end_yard": 69,
+      "start_text": "CAR 28",
+      "end_text": "CAR 69",
+      "time_elapsed": "3:17"
+    },
+    {
+      "id": "d8",
+      "team_abbr": "ATL",
+      "panthers": false,
+      "description": "7 plays, 39 yards",
+      "result": "Field Goal",
+      "period": 2,
+      "plays": 7,
+      "yards": 39,
+      "is_score": true,
+      "start_yard": 30,
+      "end_yard": 69,
+      "start_text": "ATL 30",
+      "end_text": "ATL 69",
+      "time_elapsed": "3:18"
+    },
+    {
+      "id": "d9",
+      "team_abbr": "CAR",
+      "panthers": true,
+      "description": "6 plays, 68 yards",
+      "result": "Touchdown",
+      "period": 3,
+      "plays": 6,
+      "yards": 68,
+      "is_score": true,
+      "start_yard": 32,
+      "end_yard": 100,
+      "start_text": "CAR 32",
+      "end_text": "CAR 100",
+      "time_elapsed": "3:19"
+    },
+    {
+      "id": "d10",
+      "team_abbr": "ATL",
+      "panthers": false,
+      "description": "9 plays, 72 yards",
+      "result": "Touchdown",
+      "period": 3,
+      "plays": 9,
+      "yards": 72,
+      "is_score": true,
+      "start_yard": 28,
+      "end_yard": 100,
+      "start_text": "ATL 28",
+      "end_text": "ATL 100",
+      "time_elapsed": "3:20"
+    }
+  ],
+  "win_probability": [
+    {
+      "elapsed": 0,
+      "period": 1,
+      "panthers_pct": 0.508
+    },
+    {
+      "elapsed": 59,
+      "period": 1,
+      "panthers_pct": 0.519
+    },
+    {
+      "elapsed": 117,
+      "period": 1,
+      "panthers_pct": 0.532
+    },
+    {
+      "elapsed": 176,
+      "period": 1,
+      "panthers_pct": 0.582
+    },
+    {
+      "elapsed": 235,
+      "period": 1,
+      "panthers_pct": 0.653
+    },
+    {
+      "elapsed": 293,
+      "period": 1,
+      "panthers_pct": 0.675
+    },
+    {
+      "elapsed": 352,
+      "period": 1,
+      "panthers_pct": 0.732
+    },
+    {
+      "elapsed": 411,
+      "period": 1,
+      "panthers_pct": 0.76
+    },
+    {
+      "elapsed": 470,
+      "period": 1,
+      "panthers_pct": 0.788
+    },
+    {
+      "elapsed": 528,
+      "period": 1,
+      "panthers_pct": 0.771
+    },
+    {
+      "elapsed": 587,
+      "period": 1,
+      "panthers_pct": 0.763
+    },
+    {
+      "elapsed": 646,
+      "period": 1,
+      "panthers_pct": 0.765
+    },
+    {
+      "elapsed": 704,
+      "period": 1,
+      "panthers_pct": 0.717
+    },
+    {
+      "elapsed": 763,
+      "period": 1,
+      "panthers_pct": 0.653
+    },
+    {
+      "elapsed": 822,
+      "period": 1,
+      "panthers_pct": 0.58
+    },
+    {
+      "elapsed": 880,
+      "period": 1,
+      "panthers_pct": 0.549
+    },
+    {
+      "elapsed": 939,
+      "period": 2,
+      "panthers_pct": 0.486
+    },
+    {
+      "elapsed": 998,
+      "period": 2,
+      "panthers_pct": 0.469
+    },
+    {
+      "elapsed": 1057,
+      "period": 2,
+      "panthers_pct": 0.445
+    },
+    {
+      "elapsed": 1115,
+      "period": 2,
+      "panthers_pct": 0.429
+    },
+    {
+      "elapsed": 1174,
+      "period": 2,
+      "panthers_pct": 0.417
+    },
+    {
+      "elapsed": 1233,
+      "period": 2,
+      "panthers_pct": 0.425
+    },
+    {
+      "elapsed": 1291,
+      "period": 2,
+      "panthers_pct": 0.455
+    },
+    {
+      "elapsed": 1350,
+      "period": 2,
+      "panthers_pct": 0.491
+    },
+    {
+      "elapsed": 1409,
+      "period": 2,
+      "panthers_pct": 0.559
+    },
+    {
+      "elapsed": 1467,
+      "period": 2,
+      "panthers_pct": 0.581
+    },
+    {
+      "elapsed": 1526,
+      "period": 2,
+      "panthers_pct": 0.623
+    },
+    {
+      "elapsed": 1585,
+      "period": 2,
+      "panthers_pct": 0.639
+    },
+    {
+      "elapsed": 1643,
+      "period": 2,
+      "panthers_pct": 0.665
+    },
+    {
+      "elapsed": 1702,
+      "period": 2,
+      "panthers_pct": 0.667
+    },
+    {
+      "elapsed": 1761,
+      "period": 2,
+      "panthers_pct": 0.668
+    },
+    {
+      "elapsed": 1820,
+      "period": 3,
+      "panthers_pct": 0.667
+    },
+    {
+      "elapsed": 1878,
+      "period": 3,
+      "panthers_pct": 0.613
+    },
+    {
+      "elapsed": 1937,
+      "period": 3,
+      "panthers_pct": 0.597
+    },
+    {
+      "elapsed": 1996,
+      "period": 3,
+      "panthers_pct": 0.523
+    },
+    {
+      "elapsed": 2054,
+      "period": 3,
+      "panthers_pct": 0.498
+    },
+    {
+      "elapsed": 2113,
+      "period": 3,
+      "panthers_pct": 0.485
+    },
+    {
+      "elapsed": 2172,
+      "period": 3,
+      "panthers_pct": 0.451
+    },
+    {
+      "elapsed": 2230,
+      "period": 3,
+      "panthers_pct": 0.422
+    },
+    {
+      "elapsed": 2289,
+      "period": 3,
+      "panthers_pct": 0.436
+    },
+    {
+      "elapsed": 2348,
+      "period": 3,
+      "panthers_pct": 0.476
+    },
+    {
+      "elapsed": 2407,
+      "period": 3,
+      "panthers_pct": 0.5
+    },
+    {
+      "elapsed": 2465,
+      "period": 3,
+      "panthers_pct": 0.554
+    },
+    {
+      "elapsed": 2524,
+      "period": 3,
+      "panthers_pct": 0.608
+    },
+    {
+      "elapsed": 2583,
+      "period": 3,
+      "panthers_pct": 0.682
+    },
+    {
+      "elapsed": 2641,
+      "period": 3,
+      "panthers_pct": 0.736
+    },
+    {
+      "elapsed": 2700,
+      "period": 4,
+      "panthers_pct": 0.41
+    }
+  ],
+  "leaders": [
+    {
+      "category": "passingYards",
+      "category_label": "Passing",
+      "team_abbr": "CAR",
+      "panthers": true,
+      "name": "Bryce Young",
+      "jersey": "9",
+      "position": "QB",
+      "headshot": null,
+      "display_value": "224 YDS, 1 TD, 1 INT"
+    },
+    {
+      "category": "rushingYards",
+      "category_label": "Rushing",
+      "team_abbr": "CAR",
+      "panthers": true,
+      "name": "Chuba Hubbard",
+      "jersey": "30",
+      "position": "RB",
+      "headshot": null,
+      "display_value": "71 YDS, 1 TD"
+    },
+    {
+      "category": "receivingYards",
+      "category_label": "Receiving",
+      "team_abbr": "CAR",
+      "panthers": true,
+      "name": "Xavier Legette",
+      "jersey": "17",
+      "position": "WR",
+      "headshot": null,
+      "display_value": "5 REC, 88 YDS, 1 TD"
+    },
+    {
+      "category": "passingYards",
+      "category_label": "Passing",
+      "team_abbr": "ATL",
+      "panthers": false,
+      "name": "Michael Penix Jr.",
+      "jersey": "9",
+      "position": "QB",
+      "headshot": null,
+      "display_value": "198 YDS, 1 TD"
+    }
+  ],
+  "fetched_at": "2026-08-06T20:59:10.164Z"
+}

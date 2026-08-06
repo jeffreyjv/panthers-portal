@@ -118,12 +118,16 @@ function Header({
 /** Where to open on load.
  *
  * Google's callback returns to "/?auth=...", which would otherwise drop the
- * user on News — away from the tab they signed in to use.
+ * user on News — away from the tab they signed in to use. "?tab=" is the
+ * explicit form, which is also how the device wall drives all three frames to
+ * the same screen at once.
  */
 function initialTab(): Tab {
-  return new URLSearchParams(window.location.search).has("auth")
-    ? "talk"
-    : "news";
+  const params = new URLSearchParams(window.location.search);
+  if (params.has("auth")) return "talk";
+
+  const requested = params.get("tab");
+  return TABS.some((t) => t.id === requested) ? (requested as Tab) : "news";
 }
 
 export default function App() {

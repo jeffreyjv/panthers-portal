@@ -174,6 +174,34 @@ on port 8000, so start the backend first.
 URI points at the backend, and a session cookie set on `:8000` is never sent to
 `:5173`.
 
+### Working on the phone layout
+
+Most of this site is read on a phone. http://localhost:5173/devices.html puts
+three iframes at real phone widths (375, 393, 430) side by side, with controls to
+drive all of them to the same tab and theme at once and to simulate the
+home-indicator inset.
+
+Media queries inside an iframe resolve against the iframe's width, so the
+breakpoints fire exactly as they do on the device. What it can't reproduce is
+everything that isn't CSS — momentum scrolling, Safari's zoom-on-focus, and a
+real safe area.
+
+Both dev files stay out of the build: `devices.html` sits outside `public/`, and
+`live-fixture.json` is read by a plugin marked `apply: "serve"`.
+
+### Seeing the Live tab out of season
+
+The win probability, stat bar, and drive charts only render while a game is in
+the `in` state. To work on them any other time:
+
+```bash
+npm run dev:live     # LIVE_FIXTURE=1, serves frontend/live-fixture.json at /api/live
+```
+
+The fixture is a third-quarter one-score game with 47 win-probability points, ten
+drives and seven scoring plays — enough for every chart on the tab to have
+something to draw. Edit the JSON and refresh; it's re-read per request.
+
 ## Deployment
 
 One container serves both halves: the frontend is built and handed to FastAPI,

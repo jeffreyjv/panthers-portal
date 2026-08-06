@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:live": "LIVE_FIXTURE=1 vite",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },

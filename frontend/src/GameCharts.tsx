@@ -79,6 +79,26 @@ function TableView({
 const WP_PAD = { top: 14, right: 46, bottom: 22, left: 36 };
 const WP_HEIGHT = 232;
 
+/** Chart geometry for the width it actually got.
+ *
+ * At desktop width the fixed padding is a rounding error. Inside a phone-width
+ * card it isn't: 82px of left and right gutter out of ~305 leaves a plot barely
+ * wider than it is tall, which reads as a square of noise rather than a line
+ * going somewhere. Below 420px the gutters tighten — the axis labels are "50%"
+ * and "Q1", which don't need 36px — and the plot flattens toward a shape a
+ * trend can be read off.
+ */
+function wpGeometry(width: number) {
+  if (width === 0 || width >= 420) {
+    return { pad: WP_PAD, height: WP_HEIGHT };
+  }
+  return {
+    // The right gutter holds the "41%" end label, so it shrinks least.
+    pad: { top: 12, right: 38, bottom: 20, left: 28 },
+    height: Math.max(168, Math.round(width * 0.58)),
+  };
+}
+
 /** Carolina's win probability across the game.
  *
  * The fill diverges around the 50% line — blue where Carolina is favoured,
@@ -98,8 +118,9 @@ export function WinProbabilityChart({
   const { ref, width } = useWidth<HTMLDivElement>();
   const [cursor, setCursor] = useState<number | null>(null);
 
-  const plotWidth = Math.max(width - WP_PAD.left - WP_PAD.right, 10);
-  const plotHeight = WP_HEIGHT - WP_PAD.top - WP_PAD.bottom;
+  const { pad, height } = wpGeometry(width);
+  const plotWidth = Math.max(width - pad.left - pad.right, 10);
+  const plotHeight = height - pad.top - pad.bottom;
 
   // Regulation always fills the axis, so a game in the first quarter doesn't
   // stretch six minutes of football across the full width and then have to
@@ -108,8 +129,8 @@ export function WinProbabilityChart({
   const span = Math.max(4 * QUARTER_SECONDS, lastElapsed);
   const periods = Math.max(4, Math.ceil(span / QUARTER_SECONDS));
 
-  const x = (elapsed: number) => WP_PAD.left + (elapsed / span) * plotWidth;
-  const y = (pct: number) => WP_PAD.top + (1 - pct) * plotHeight;
+  const x = (elapsed: number) => pad.left + (elapsed / span) * plotWidth;
+  const y = (pct: number) => pad.top + (1 - pct) * plotHeight;
   const midline = y(0.5);
 
   const geometry = useMemo(() => {
@@ -138,7 +159,7 @@ export function WinProbabilityChart({
     if (!element) return;
     const bounds = element.getBoundingClientRect();
     const elapsed =
-      ((clientX - bounds.left - WP_PAD.left) / plotWidth) * span;
+      ((clientX - bounds.left - pad.left) / plotWidth) * span;
 
     let best = 0;
     for (let i = 1; i < points.length; i += 1) {
@@ -172,7 +193,7 @@ export function WinProbabilityChart({
         {width > 0 && geometry && (
           <svg
             width={width}
-            height={WP_HEIGHT}
+            height={height}
             role="img"
             aria-label={`${panthers.short_name} win probability over the course of the game, currently ${latestPct} percent`}
             tabIndex={0}
@@ -194,18 +215,18 @@ export function WinProbabilityChart({
                   say "which side of even" instead of just "how much". */}
               <clipPath id="wp-above">
                 <rect
-                  x={WP_PAD.left}
-                  y={WP_PAD.top}
+                  x={pad.left}
+                  y={pad.top}
                   width={plotWidth}
-                  height={midline - WP_PAD.top}
+                  height={midline - pad.top}
                 />
               </clipPath>
               <clipPath id="wp-below">
                 <rect
-                  x={WP_PAD.left}
+                  x={pad.left}
                   y={midline}
                   width={plotWidth}
-                  height={WP_PAD.top + plotHeight - midline}
+                  height={pad.top + plotHeight - midline}
                 />
               </clipPath>
             </defs>
@@ -221,14 +242,14 @@ export function WinProbabilityChart({
                       className="viz-grid"
                       x1={x(boundary)}
                       x2={x(boundary)}
-                      y1={WP_PAD.top}
-                      y2={WP_PAD.top + plotHeight}
+                      y1={pad.top}
+                      y2={pad.top + plotHeight}
                     />
                   )}
                   <text
                     className="viz-tick"
                     x={centre}
-                    y={WP_HEIGHT - 6}
+                    y={height - 6}
                     textAnchor="middle"
                   >
                     {periodLabel(i + 1)}
@@ -241,7 +262,7 @@ export function WinProbabilityChart({
               <text
                 key={pct}
                 className="viz-tick"
-                x={WP_PAD.left - 7}
+                x={pad.left - 7}
                 y={y(pct) + 3.5}
                 textAnchor="end"
               >
@@ -256,8 +277,8 @@ export function WinProbabilityChart({
                 visible where the area crosses it. */}
             <line
               className="viz-baseline"
-              x1={WP_PAD.left}
-              x2={WP_PAD.left + plotWidth}
+              x1={pad.left}
+              x2={pad.left + plotWidth}
               y1={midline}
               y2={midline}
             />
@@ -269,8 +290,8 @@ export function WinProbabilityChart({
                 <line
                   x1={x(active.elapsed)}
                   x2={x(active.elapsed)}
-                  y1={WP_PAD.top}
-                  y2={WP_PAD.top + plotHeight}
+                  y1={pad.top}
+                  y2={pad.top + plotHeight}
                 />
                 <circle
                   className="viz-dot is-car"
@@ -287,11 +308,15 @@ export function WinProbabilityChart({
               cy={y(latest.panthers_pct)}
               r={4.5}
             />
-            {/* The one direct label the chart earns: where it ended up. */}
+            {/* The one direct label the chart earns: where it ended up.
+                .viz-plot lets the svg overflow, so on a finished game — where
+                the last point sits at the right edge — an unclamped label
+                paints outside the card rather than being cut off by it. */}
             <text
               className="viz-end-label"
-              x={x(latest.elapsed) + 9}
+              x={Math.min(x(latest.elapsed) + 9, width - 4)}
               y={y(latest.panthers_pct) + 4}
+              textAnchor={x(latest.elapsed) + 9 > width - 4 ? "end" : "start"}
             >
               {latestPct}%
             </text>
@@ -306,7 +331,7 @@ export function WinProbabilityChart({
               // Flips to the left of the crosshair past the midpoint so it never
               // runs off the right edge.
               transform:
-                x(active.elapsed) > WP_PAD.left + plotWidth / 2
+                x(active.elapsed) > pad.left + plotWidth / 2
                   ? "translate(-100%, 0)"
                   : "none",
             }}

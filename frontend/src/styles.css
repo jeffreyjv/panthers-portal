@@ -30,6 +30,8 @@
 
   --page-wash: rgba(0, 133, 202, 0.14);
   --masthead-bg: rgba(11, 14, 17, 0.82);
+  /* The same colour at full opacity, for where the frost has to be given up. */
+  --masthead-solid: #0b0e11;
   --shadow-card: 0 18px 34px rgba(0, 0, 0, 0.5);
   --shadow-feature: 0 24px 50px rgba(0, 0, 0, 0.55);
   --shimmer: rgba(255, 255, 255, 0.06);
@@ -64,6 +66,7 @@
 
   --page-wash: rgba(0, 133, 202, 0.16);
   --masthead-bg: rgba(255, 255, 255, 0.85);
+  --masthead-solid: #ffffff;
   --shadow-card: 0 18px 34px rgba(15, 30, 45, 0.14);
   --shadow-feature: 0 24px 50px rgba(15, 30, 45, 0.18);
   --shimmer: rgba(255, 255, 255, 0.75);
@@ -1428,15 +1431,30 @@ a {
 }
 
 /* ---------- Breakpoints ----------
-   Two of them, and only two:
+   Four of them, widest first, and they stack:
 
-   700px — the layout wrap. Below this the brand and the tabs stop fitting on
-           one line, so the tab row drops underneath and spans the full width.
-   480px — the phone. Padding tightens, type steps down, and anything that
-           can't earn its width gets dropped.
+   900px — tablet. The per-game moneyline stops earning its width.
+   700px — the layout wrap. The brand and the tabs stop fitting on one line, so
+           the tab row drops underneath and spans the full width.
+   560px — the phone. The tab row leaves the masthead entirely and becomes a
+           fixed bottom bar, because five labels never fit a phone-width row.
+   480px — the small phone. Padding tightens and type steps down.
 
-   Everything narrow lives here rather than beside its component, so the
-   phone layout can be read in one pass instead of hunted for. */
+   The page chrome and everything defined above this point narrows here, so the
+   phone layout can be read in one pass. Components defined *below* it can't:
+   these rules and theirs have equal specificity, so the later one wins and a
+   query up here would lose. Those keep their narrow block beside the component
+   — the schedule at 620, the injury list and the Live tab at 560.
+
+   Order matters within a block too: a rule set at 700 and refined at 560 has to
+   appear in that order. */
+
+@media (max-width: 900px) {
+  /* Spread and total earn their width at this size; the moneyline doesn't. */
+  .game-odds-money {
+    display: none;
+  }
+}
 
 @media (max-width: 700px) {
   /* Back to flex here: the tab row wraps onto its own line below the brand,
@@ -1482,6 +1500,104 @@ a {
   }
 }
 
+@media (max-width: 560px) {
+  /* backdrop-filter makes an element a containing block for its fixed-position
+     descendants, so while the masthead is frosted the tab bar below pins to the
+     bottom of the *header* rather than the viewport. The bar keeps its own
+     frost — it's the one with content scrolling under it — and the masthead
+     trades an imperceptible blur for a solid fill. */
+  .masthead {
+    backdrop-filter: none;
+    background: var(--masthead-solid);
+  }
+
+  /* The tab row leaves the masthead and becomes a bottom bar.
+     Five uppercase labels measure 328px, which is wider than the row a 375px
+     phone has left after the brand — and .tabs suppressed both scrollbars, so
+     "Talk" sat off the right edge with nothing to suggest it was there. Fixed
+     to the bottom each tab gets an equal fifth, all five are visible at once,
+     and they're under the thumb instead of at arm's reach. */
+  .tabs {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    margin-left: 0;
+    gap: 0.15rem;
+    /* Nothing overflows now, so the hidden scrollbar has nothing to hide. */
+    overflow-x: visible;
+    padding: 0.3rem max(0.5rem, env(safe-area-inset-left))
+      calc(0.3rem + env(safe-area-inset-bottom))
+      max(0.5rem, env(safe-area-inset-right));
+    background: var(--masthead-bg);
+    backdrop-filter: saturate(140%) blur(12px);
+    border-top: 1px solid var(--border);
+  }
+  .tab {
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0.4rem 0.15rem;
+    font-size: 0.95rem;
+    letter-spacing: 0.04em;
+    text-align: center;
+  }
+  /* The pill's glow reads as a drop shadow against the bar's own edge. */
+  .tab.is-active {
+    box-shadow: none;
+  }
+
+  /* The bar floats over the page, so the last of the content needs somewhere
+     to end that isn't underneath it. */
+  .footer {
+    padding-bottom: calc(4.2rem + env(safe-area-inset-bottom));
+  }
+
+  /* With the tabs gone the masthead is one short row again: the 700px wrap
+     that dropped them onto their own line has nothing left to drop. Getting
+     brand + countdown + toggle inside 360px takes about 90px off the three of
+     them, so each gives up the part that carries the least. */
+  .masthead-inner {
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+  }
+  .brand {
+    min-width: 0;
+    gap: 0.45rem;
+  }
+  .brand-claw {
+    width: 24px;
+    height: 24px;
+  }
+  /* Last resort below ~340px: the wordmark clips rather than the page
+     scrolling sideways, which is the failure nobody notices they caused. */
+  .brand-team {
+    font-size: 1.05rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* A ticking seconds digit is 31px spent on the least useful field in a
+     countdown that's measured in days. */
+  .countdown-clock .countdown-seg:last-child {
+    display: none;
+  }
+  .masthead-tools {
+    order: 0;
+    width: auto;
+    margin-left: auto;
+    gap: 0.6rem;
+  }
+  /* Even with the tabs gone the row doesn't fit: the brand and the 149px
+     countdown leave less than three 44px targets' worth at 360px, and the
+     overflow shows up as the whole page scrolling sideways. The footer carries
+     the same links a scroll away. */
+  .masthead-tools .socials {
+    display: none;
+  }
+
+}
+
 @media (max-width: 480px) {
   /* Every side padding narrows together, so the content keeps its margins
      without the page ever exceeding the viewport. */
@@ -1504,13 +1620,6 @@ a {
     display: none;
   }
 
-  /* Three 44px targets alongside the tabs is 16px more than a 390px phone has,
-     and the tab row is what loses — "Team" ends up clipped under an icon. The
-     footer copy is a scroll away, so the masthead pair goes. */
-  .masthead-tools .socials {
-    display: none;
-  }
-
   /* "Special Teams — Starters" is wider than a 320px viewport on its own, so
      the roster's section titles wrap here instead of pushing the page sideways. */
   .section-head {
@@ -1522,12 +1631,8 @@ a {
     font-size: 1.3rem;
   }
 
-  /* 44px minimum touch targets — below that these are genuinely hard to hit. */
-  .tab {
-    min-height: 44px;
-    padding: 0.4rem 0.7rem;
-    font-size: 0.98rem;
-  }
+  /* 44px minimum touch targets — below that these are genuinely hard to hit.
+     (.tab already got its 44px in the bottom bar at 560.) */
   .chip {
     min-height: 44px;
     display: inline-flex;
@@ -1540,7 +1645,9 @@ a {
     min-height: 44px;
   }
 
-  /* Anything under 16px makes iOS Safari zoom the whole page on focus. */
+  /* Anything under 16px makes iOS Safari zoom the whole page on focus. The
+     Talk fields need the same guard, but they're declared further down the
+     file and would win on order — theirs sits beside them instead. */
   .roster-search {
     font-size: 16px;
   }
@@ -1891,6 +1998,17 @@ a {
   font-size: 0.9rem;
 }
 
+/* Anything under 16px makes iOS Safari zoom the whole page the moment the field
+   takes focus — and it never zooms back out, so the rest of the session is spent
+   panning a page that no longer fits. Composing a post and replying to one were
+   the two places on the site that still did it. */
+@media (max-width: 560px) {
+  .talk-input,
+  .talk-reply-input {
+    font-size: 16px;
+  }
+}
+
 .talk-inline-error {
   margin: 0.4rem 0 0;
   color: var(--espn);
@@ -2108,10 +2226,15 @@ a {
     width: 40px;
     height: 40px;
   }
-  /* The note is the first thing to go: at this width it pushes the pill and
-     the return date into a two-line stack that outgrows the row. */
+  /* The note used to be dropped here, but "questionable" without "hamstring,
+     limited in practice Wednesday" is the half a fan cares less about. Clamped
+     to two lines it stays readable without the row growing unbounded. */
   .injury-comment {
-    display: none;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
   }
 }
 
@@ -2223,15 +2346,24 @@ a {
   color: var(--silver);
 }
 
-@media (max-width: 900px) {
-  /* Spread and total earn their width at this size; the moneyline doesn't. */
-  .game-odds-money {
-    display: none;
+/* The moneyline goes at 900, up in the breakpoints block. The spread never
+   goes: it's the number a fan opened the schedule to find, and hiding the whole
+   chip below 620 meant no phone ever showed a line at all. */
+@media (max-width: 560px) {
+  /* The chip drops to its own row under the opponent rather than competing with
+     the name for what's left of the middle cell. The total goes with it; the
+     spread is the number worth the second line. */
+  .game-main {
+    flex-wrap: wrap;
   }
-}
-
-@media (max-width: 620px) {
   .game-odds {
+    flex-basis: 100%;
+    margin-left: 0;
+    /* No longer inline with the name, so it shouldn't stretch to the row. */
+    align-self: flex-start;
+    width: fit-content;
+  }
+  .game-odds-total {
     display: none;
   }
 }
@@ -3202,5 +3334,90 @@ a {
   /* Dropped rather than shrunk: the play text already names the score type. */
   .scorelog-type {
     display: none;
+  }
+}
+
+/* The Live tab's own phone breakpoint.
+   It has to sit here rather than in the breakpoints block near the top: these
+   rules override component rules defined below that block, and at equal
+   specificity the later one wins. Everything above 760 already had a step; the
+   pieces below never got one, which is why the charts were the most cramped
+   thing on the page while .main tightened around them. */
+@media (max-width: 560px) {
+  /* .main drops to 0.9rem of side padding at 480 while these cards kept
+     1.3rem, so the charts were paying twice for the same margin. */
+  .viz {
+    padding: 0.9rem 0.8rem 0.85rem;
+  }
+
+  /* Five columns leave about 47px per bar at 360px, at which point the bar has
+     stopped being a comparison and is just a coloured sliver. The label takes
+     its own row and hands both tracks the full width back. */
+  .statbar {
+    grid-template-columns: 2.6rem minmax(0, 1fr) minmax(0, 1fr) 2.6rem;
+    grid-template-areas:
+      "label label label label"
+      "carval carbar oppbar oppval";
+    gap: 0.15rem 0.4rem;
+    padding-bottom: 0.15rem;
+  }
+  .statbar-label {
+    grid-area: label;
+    text-align: center;
+    font-size: 0.62rem;
+  }
+  .statbar-value.is-car {
+    grid-area: carval;
+  }
+  .statbar-track.is-car {
+    grid-area: carbar;
+  }
+  .statbar-track.is-opp {
+    grid-area: oppbar;
+  }
+  .statbar-value.is-opp {
+    grid-area: oppval;
+  }
+  .statbar-value {
+    font-size: 0.9rem;
+  }
+
+  /* The result column *grows* here, against the trend of this block: at 3.4rem
+     "Touchdown" ellipses to "Touchdo…", and truncating the most common and most
+     interesting result on the chart is worse than a narrower bar. The period
+     gutter pays for it — "Q1" needs very little. */
+  .drivechart-axis,
+  .driverow {
+    grid-template-columns: 1.4rem minmax(0, 1fr) 4.5rem;
+    gap: 0.3rem;
+  }
+  .drivechart-grid {
+    left: calc(1.4rem + 0.3rem);
+    right: calc(4.5rem + 0.3rem);
+  }
+  .driverow-result {
+    font-size: 0.64rem;
+  }
+
+  .scorelog-item {
+    grid-template-columns: 2.3rem minmax(0, 1fr) 3.2rem;
+    column-gap: 0.4rem;
+  }
+
+  /* The logo column and the fixed meta grid are the last two fixed tracks on
+     the tab that never got a narrow step. */
+  .live-team {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    gap: 0.5rem;
+  }
+  /* Flex, so the pairs already wrap — they just wrap with desktop-sized gutters
+     and desktop-sized padding inside a 360px card. (.leadergrid needs nothing:
+     its minmax(min(220px, 100%), 1fr) collapses to one column on its own.) */
+  .live-meta {
+    gap: 0.6rem 1rem;
+    padding: 0.7rem 0.8rem;
+  }
+  .live-situation {
+    gap: 0.45rem;
   }
 }

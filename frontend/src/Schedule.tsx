@@ -42,7 +42,9 @@ function GameOdds({ line }: { line: GameLine }) {
   return (
     <span className="game-odds" title={`${line.provider} line`}>
       {line.spread && <span className="game-odds-spread">{line.spread}</span>}
-      {line.over_under !== null && <span>O/U {line.over_under}</span>}
+      {line.over_under !== null && (
+        <span className="game-odds-total">O/U {line.over_under}</span>
+      )}
       {money && <span className="game-odds-money">CAR {money}</span>}
     </span>
   );
