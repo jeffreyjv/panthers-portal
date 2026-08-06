@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ClawMark } from "./ClawMark";
 import { Countdown } from "./Countdown";
+import { Live } from "./Live";
 import { News } from "./News";
 import { Schedule } from "./Schedule";
 import { SocialLinks } from "./SocialLinks";
@@ -8,12 +9,15 @@ import { Talk } from "./Talk";
 import { Team } from "./Team";
 
 type Theme = "dark" | "light";
-type Tab = "news" | "schedule" | "team" | "talk";
+type Tab = "news" | "live" | "schedule" | "team" | "talk";
 
 const THEME_KEY = "panthers-portal-theme";
 
+// Live sits second: on a game day it's the reason to open the site, and it's
+// where the schedule's next row leads anyway.
 const TABS: { id: Tab; label: string }[] = [
   { id: "news", label: "News" },
+  { id: "live", label: "Live" },
   { id: "schedule", label: "Schedule" },
   { id: "team", label: "Team" },
   { id: "talk", label: "Talk" },
@@ -143,6 +147,7 @@ export default function App() {
       <main className="main">
         <div className="tab-panel" key={tab}>
           {tab === "news" && <News />}
+          {tab === "live" && <Live />}
           {tab === "schedule" && <Schedule />}
           {tab === "team" && <Team />}
           {tab === "talk" && <Talk />}

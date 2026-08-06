@@ -23,13 +23,21 @@ import feedparser
 
 from models import (
     Article,
+    Drive,
     Game,
+    GameLeader,
     GameLine,
     Injury,
+    LiveGame,
+    LiveSituation,
+    LiveTeam,
     Player,
+    ScoringPlay,
     SeasonFutures,
     Standings,
+    StatPair,
     TeamStanding,
+    WinProbPoint,
 )
 
 logger = logging.getLogger(__name__)
@@ -913,3 +921,559 @@ def fetch_futures(season: int) -> Optional[SeasonFutures]:
 
     logger.info("Fetched %d futures market(s)", len(prices))
     return SeasonFutures(provider=provider or "Sportsbook", **prices)
+
+
+# --- Live game (ESPN's summary endpoint) -------------------------------------
+# One request carries the whole game: score, clock, box score, drives, scoring
+# plays, win probability and leaders. Everything below adapts that single
+# payload — the alternative was a request per section, on a route meant to be
+# polled every few seconds while a game is on.
+ESPN_SUMMARY_URL = (
+    "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event={event}"
+)
+# No `seasontype`: ESPN then answers with whichever one is current, so this
+# tracks preseason in August and the playoffs in January without being told.
+ESPN_CURRENT_SCHEDULE_URL = (
+    "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/car/schedule"
+)
+
+_QUARTER_SECONDS = 15 * 60
+# ESPN's own labels are internal-sounding ("Pro Football (N) South Division"),
+# but the season type names are clean enough to show.
+_SEASON_TYPE_LABELS = {1: "Preseason", 2: "Regular Season", 3: "Postseason"}
+
+
+def _clock_remaining(clock: Any) -> Optional[int]:
+    """Seconds left in the period, from ESPN's "6:44" display value."""
+    if isinstance(clock, dict):
+        if isinstance(clock.get("value"), (int, float)):
+            return int(clock["value"])
+        clock = clock.get("displayValue")
+
+    parts = str(clock or "").split(":")
+    if len(parts) != 2:
+        return None
+    try:
+        return int(parts[0]) * 60 + int(parts[1])
+    except ValueError:
+        return None
+
+
+def _elapsed_seconds(period: Optional[int], clock: Any) -> Optional[int]:
+    """Game clock burned so far, for putting a play on a time axis.
+
+    Overtime is measured in quarter-length blocks like everything before it.
+    That overstates a 10-minute period, but the axis only has to keep plays in
+    order and spaced by how long they took, which it does.
+    """
+    remaining = _clock_remaining(clock)
+    if not period or remaining is None:
+        return None
+    return (period - 1) * _QUARTER_SECONDS + (_QUARTER_SECONDS - remaining)
+
+
+def _select_event() -> Optional[Dict[str, Any]]:
+    """The one game the Live tab should be showing.
+
+    In priority order: a game in progress, else the next one scheduled, else the
+    one most recently finished. That last case is what carries the tab through
+    the six days between games — a fan arriving on Tuesday wants Sunday's box
+    score, not an empty page.
+    """
+    payload = _fetch_espn_json(ESPN_CURRENT_SCHEDULE_URL)
+    events = payload.get("events") or []
+
+    live: List[Dict[str, Any]] = []
+    upcoming: List[Dict[str, Any]] = []
+    finished: List[Dict[str, Any]] = []
+
+    for event in events:
+        competitions = event.get("competitions") or []
+        if not event.get("id") or not competitions:
+            continue
+        state = ((competitions[0].get("status") or {}).get("type") or {}).get("state")
+        {"in": live, "pre": upcoming}.get(state, finished).append(event)
+
+    def kickoff(event: Dict[str, Any]) -> datetime:
+        parsed = _parse_espn_datetime(event.get("date"))
+        return parsed or datetime.max.replace(tzinfo=timezone.utc)
+
+    if live:
+        chosen = min(live, key=kickoff)
+    elif upcoming:
+        chosen = min(upcoming, key=kickoff)
+    elif finished:
+        chosen = max(finished, key=kickoff)
+    else:
+        return None
+
+    season = payload.get("requestedSeason") or {}
+    return {
+        "event_id": str(chosen["id"]),
+        "week": (chosen.get("week") or {}).get("number"),
+        "season": season.get("year") or current_season(),
+        "season_type": season.get("type") or _ESPN_REGULAR_SEASON,
+        # The summary endpoint's header carries neither of these, but the
+        # schedule event does, so they ride along rather than costing a request.
+        "name": chosen.get("name"),
+        "short_name": chosen.get("shortName"),
+        "network": _network(chosen["competitions"][0]),
+    }
+
+
+def _competitor_to_live_team(competitor: Dict[str, Any]) -> Optional[LiveTeam]:
+    """Adapter: map one header competitor onto the normalized LiveTeam."""
+    team = competitor.get("team") or {}
+    abbreviation = team.get("abbreviation")
+    if not abbreviation:
+        return None
+
+    # ESPN omits `score` entirely before kickoff, and sends it as a string once
+    # the game starts.
+    try:
+        score = int(competitor["score"])
+    except (KeyError, TypeError, ValueError):
+        score = None
+
+    record = next(
+        (
+            r.get("summary")
+            for r in competitor.get("record") or []
+            if r.get("type") == "total" and r.get("summary")
+        ),
+        None,
+    )
+
+    linescores: List[Optional[int]] = []
+    for line in competitor.get("linescores") or []:
+        try:
+            linescores.append(int(float(line.get("displayValue"))))
+        except (TypeError, ValueError):
+            linescores.append(None)
+
+    return LiveTeam(
+        id=str(team.get("id") or abbreviation),
+        abbreviation=abbreviation,
+        name=team.get("displayName") or abbreviation,
+        short_name=team.get("shortDisplayName") or team.get("name") or abbreviation,
+        logo=_logo(team),
+        score=score,
+        record=record,
+        linescores=linescores,
+        panthers=abbreviation.upper() == _TEAM_ABBR,
+        home=competitor.get("homeAway") == "home",
+    )
+
+
+# The comparison rows, in the order they read. Each names how to get the number
+# the bar is drawn from, because ESPN is inconsistent about where it lives: some
+# stats carry a usable `value`, some send "-" there and put the number in
+# `displayValue`, and some only have it inside a compound string like "6-55".
+def _stat_from_value(entry: Dict[str, Any]) -> Optional[float]:
+    value = entry.get("value")
+    return float(value) if isinstance(value, (int, float)) else None
+
+
+def _stat_from_display(entry: Dict[str, Any]) -> Optional[float]:
+    try:
+        return float(str(entry.get("displayValue", "")).strip())
+    except ValueError:
+        return None
+
+
+def _stat_from_second_part(entry: Dict[str, Any]) -> Optional[float]:
+    """The yards half of a "penalties-yards" pair like "6-55"."""
+    parts = str(entry.get("displayValue", "")).split("-")
+    try:
+        return float(parts[1])
+    except (IndexError, ValueError):
+        return None
+
+
+_COMPARISON_STATS = (
+    ("totalYards", "Total yards", _stat_from_display),
+    ("netPassingYards", "Passing yards", _stat_from_value),
+    ("rushingYards", "Rushing yards", _stat_from_value),
+    ("firstDowns", "First downs", _stat_from_value),
+    ("thirdDownEff", "3rd down", _stat_from_value),
+    ("totalPenaltiesYards", "Penalty yards", _stat_from_second_part),
+    ("turnovers", "Turnovers", _stat_from_display),
+    ("possessionTime", "Time of possession", _stat_from_value),
+)
+
+
+def _team_stats(boxscore: Dict[str, Any]) -> List[StatPair]:
+    """The comparison table, one row per curated stat.
+
+    Rows nobody has a number for are dropped, which is how this comes back empty
+    before kickoff rather than as eight blank bars.
+    """
+    by_team: Dict[bool, Dict[str, Dict[str, Any]]] = {}
+    for side in boxscore.get("teams") or []:
+        panthers = (side.get("team") or {}).get("abbreviation", "").upper() == _TEAM_ABBR
+        by_team[panthers] = {
+            s["name"]: s for s in side.get("statistics") or [] if s.get("name")
+        }
+
+    ours = by_team.get(True, {})
+    theirs = by_team.get(False, {})
+
+    pairs: List[StatPair] = []
+    for name, label, read_number in _COMPARISON_STATS:
+        us = ours.get(name)
+        them = theirs.get(name)
+        if not us and not them:
+            continue
+        pairs.append(
+            StatPair(
+                key=name,
+                label=label,
+                panthers_display=(us or {}).get("displayValue"),
+                opponent_display=(them or {}).get("displayValue"),
+                panthers_value=read_number(us) if us else None,
+                opponent_value=read_number(them) if them else None,
+            )
+        )
+
+    return pairs
+
+
+def _scoring_plays(payload: Dict[str, Any], panthers_home: bool) -> List[ScoringPlay]:
+    """Every score, with the running total oriented to Carolina."""
+    plays: List[ScoringPlay] = []
+
+    for play in payload.get("scoringPlays") or []:
+        text = (play.get("text") or "").strip()
+        if not text:
+            continue
+
+        home_score = play.get("homeScore") or 0
+        away_score = play.get("awayScore") or 0
+        abbreviation = (play.get("team") or {}).get("abbreviation")
+
+        plays.append(
+            ScoringPlay(
+                id=str(play.get("id") or f"{len(plays)}"),
+                period=(play.get("period") or {}).get("number") or 0,
+                clock=(play.get("clock") or {}).get("displayValue"),
+                team_abbr=abbreviation,
+                panthers=str(abbreviation).upper() == _TEAM_ABBR,
+                text=text,
+                type_abbr=(play.get("scoringType") or {}).get("abbreviation"),
+                panthers_score=home_score if panthers_home else away_score,
+                opponent_score=away_score if panthers_home else home_score,
+            )
+        )
+
+    return plays
+
+
+def _drive_yard(raw: Any, panthers_home: bool) -> Optional[int]:
+    """ESPN's yard line, re-expressed as yards from Carolina's own goal line.
+
+    ESPN measures from the *home* team's goal line, so the same number means
+    opposite things depending on who is hosting. Normalizing here is what lets
+    the drive chart put Carolina's end zone on the same side every week.
+    """
+    if not isinstance(raw, (int, float)):
+        return None
+    yard = int(raw)
+    if not 0 <= yard <= 100:
+        return None
+    return yard if panthers_home else 100 - yard
+
+
+def _drives(payload: Dict[str, Any], panthers_home: bool) -> List[Drive]:
+    """Every drive so far, oldest first, with the one in progress last."""
+    raw = payload.get("drives") or {}
+    entries = list(raw.get("previous") or [])
+    current = raw.get("current")
+    if isinstance(current, dict):
+        entries.append(current)
+
+    drives: List[Drive] = []
+    for index, entry in enumerate(entries):
+        team = entry.get("team") or {}
+        abbreviation = team.get("abbreviation")
+        start = entry.get("start") or {}
+        end = entry.get("end") or {}
+
+        drives.append(
+            Drive(
+                id=str(entry.get("id") or index),
+                team_abbr=abbreviation,
+                panthers=str(abbreviation).upper() == _TEAM_ABBR,
+                description=entry.get("description"),
+                result=entry.get("displayResult") or entry.get("result"),
+                period=(start.get("period") or {}).get("number"),
+                plays=entry.get("offensivePlays"),
+                yards=entry.get("yards"),
+                is_score=bool(entry.get("isScore")),
+                start_yard=_drive_yard(start.get("yardLine"), panthers_home),
+                end_yard=_drive_yard(end.get("yardLine"), panthers_home),
+                start_text=start.get("text"),
+                end_text=end.get("text"),
+                time_elapsed=(entry.get("timeElapsed") or {}).get("displayValue"),
+            )
+        )
+
+    return drives
+
+
+def _play_clock_index(payload: Dict[str, Any]) -> Dict[str, tuple]:
+    """Map play id -> (period, elapsed seconds), for the win-probability axis."""
+    raw = payload.get("drives") or {}
+    entries = list(raw.get("previous") or [])
+    current = raw.get("current")
+    if isinstance(current, dict):
+        entries.append(current)
+
+    index: Dict[str, tuple] = {}
+    for entry in entries:
+        for play in entry.get("plays") or []:
+            play_id = play.get("id")
+            period = (play.get("period") or {}).get("number")
+            elapsed = _elapsed_seconds(period, play.get("clock"))
+            if play_id and elapsed is not None:
+                index[str(play_id)] = (period, elapsed)
+
+    return index
+
+
+def _win_probability(
+    payload: Dict[str, Any], panthers_home: bool
+) -> List[WinProbPoint]:
+    """Carolina's win probability over the course of the game.
+
+    ESPN gives the *home* team's percentage keyed on a play id, and separately
+    gives the plays, so the two are joined here to get a time axis. A play that
+    doesn't resolve — the opening entry is keyed on a drive, not a play — keeps
+    the previous point's timestamp rather than being dropped, which would put a
+    gap in the line for no reason a reader could see.
+    """
+    points = payload.get("winprobability") or []
+    if not points:
+        return []
+
+    clocks = _play_clock_index(payload)
+    series: List[WinProbPoint] = []
+    elapsed = 0
+    period = 1
+
+    for point in points:
+        home_pct = point.get("homeWinPercentage")
+        if not isinstance(home_pct, (int, float)):
+            continue
+
+        resolved = clocks.get(str(point.get("playId")))
+        if resolved:
+            # Clamp forward only: a line that steps backwards in time reads as a
+            # rendering bug.
+            period = resolved[0] or period
+            elapsed = max(elapsed, resolved[1])
+
+        tie_pct = point.get("tiePercentage") or 0
+        panthers_pct = home_pct if panthers_home else 1 - home_pct - tie_pct
+
+        series.append(
+            WinProbPoint(
+                elapsed=elapsed,
+                period=period,
+                panthers_pct=round(min(max(panthers_pct, 0.0), 1.0), 4),
+            )
+        )
+
+    return series
+
+
+# The three categories a fan looks for. ESPN also sends sacks and tackles, but
+# six cards is already the most this earns on the page.
+_LEADER_CATEGORIES = ("passingYards", "rushingYards", "receivingYards")
+
+
+def _leaders(payload: Dict[str, Any]) -> List[GameLeader]:
+    """Each side's passing, rushing and receiving leader.
+
+    Comes back empty before kickoff: ESPN publishes the categories with no
+    leaders in them until somebody has a stat.
+    """
+    leaders: List[GameLeader] = []
+
+    for side in payload.get("leaders") or []:
+        abbreviation = (side.get("team") or {}).get("abbreviation")
+        panthers = str(abbreviation).upper() == _TEAM_ABBR
+
+        by_category = {c.get("name"): c for c in side.get("leaders") or []}
+        for category in _LEADER_CATEGORIES:
+            entry = by_category.get(category) or {}
+            best = next(iter(entry.get("leaders") or []), None)
+            if not best:
+                continue
+
+            athlete = best.get("athlete") or {}
+            name = athlete.get("displayName") or athlete.get("fullName")
+            if not name:
+                continue
+
+            leaders.append(
+                GameLeader(
+                    category=category,
+                    category_label=entry.get("displayName") or category,
+                    team_abbr=abbreviation,
+                    panthers=panthers,
+                    name=name,
+                    jersey=athlete.get("jersey"),
+                    position=(athlete.get("position") or {}).get("abbreviation"),
+                    headshot=(athlete.get("headshot") or {}).get("href"),
+                    display_value=best.get("displayValue"),
+                )
+            )
+
+    return leaders
+
+
+def _situation(
+    competition: Dict[str, Any], panthers: LiveTeam, opponent: LiveTeam
+) -> Optional[LiveSituation]:
+    """Down, distance and possession — only present while a game is live."""
+    raw = competition.get("situation")
+    if not isinstance(raw, dict):
+        return None
+
+    possession_id = str(raw.get("possession") or "")
+    by_id = {panthers.id: panthers, opponent.id: opponent}
+    offense = by_id.get(possession_id)
+
+    # ESPN spots the ball relative to the home goal line; the offense's distance
+    # to the end zone therefore depends on which way it's going.
+    yards_to_endzone = None
+    yard_line = raw.get("yardLine")
+    if offense is not None and isinstance(yard_line, (int, float)):
+        yards_to_endzone = (
+            100 - int(yard_line) if offense.home else int(yard_line)
+        )
+        if not 0 <= yards_to_endzone <= 100:
+            yards_to_endzone = None
+
+    home_timeouts = raw.get("homeTimeouts")
+    away_timeouts = raw.get("awayTimeouts")
+
+    return LiveSituation(
+        possession=offense.abbreviation if offense else None,
+        down_distance=raw.get("downDistanceText"),
+        short_down_distance=raw.get("shortDownDistanceText"),
+        spot=raw.get("possessionText"),
+        yards_to_endzone=yards_to_endzone,
+        last_play=((raw.get("lastPlay") or {}).get("text") or "").strip() or None,
+        red_zone=bool(raw.get("isRedZone")),
+        panthers_timeouts=home_timeouts if panthers.home else away_timeouts,
+        opponent_timeouts=away_timeouts if panthers.home else home_timeouts,
+    )
+
+
+def _pickcenter_line(payload: Dict[str, Any]) -> tuple:
+    """The book's phrasing of the line and the total, for the pre-game card.
+
+    `pickcenter` is the summary endpoint's own odds block, so this needs no
+    second request — unlike the schedule's per-game lines, which are keyed on
+    the event and fetched separately.
+    """
+    for book in payload.get("pickcenter") or []:
+        details = _clean_text(book.get("details"))
+        over_under = book.get("overUnder")
+        if details or isinstance(over_under, (int, float)):
+            return (
+                details,
+                float(over_under) if isinstance(over_under, (int, float)) else None,
+            )
+    return None, None
+
+
+def fetch_live_game() -> Optional[LiveGame]:
+    """The game currently worth watching, as one payload.
+
+    Returns None when Carolina has no game on the current schedule at all, which
+    is a genuinely empty tab rather than a failure.
+    """
+    selection = _select_event()
+    if selection is None:
+        return None
+
+    event_id = selection["event_id"]
+    payload = _fetch_espn_json(ESPN_SUMMARY_URL.format(event=event_id))
+
+    header = payload.get("header") or {}
+    competitions = header.get("competitions") or []
+    if not competitions:
+        raise RuntimeError(f"No competition in ESPN summary for event {event_id}")
+    competition = competitions[0]
+
+    teams = [
+        team
+        for team in (
+            _competitor_to_live_team(c) for c in competition.get("competitors") or []
+        )
+        if team is not None
+    ]
+    panthers = next((t for t in teams if t.panthers), None)
+    opponent = next((t for t in teams if not t.panthers), None)
+    if panthers is None or opponent is None:
+        raise RuntimeError(f"Carolina not found in ESPN summary for event {event_id}")
+
+    status = competition.get("status") or {}
+    status_type = status.get("type") or {}
+    state = status_type.get("state") or "pre"
+
+    game_info = payload.get("gameInfo") or {}
+    venue = game_info.get("venue") or {}
+    address = venue.get("address") or {}
+    weather = game_info.get("weather") or {}
+
+    line, over_under = _pickcenter_line(payload)
+    season_type = int(selection["season_type"])
+
+    game = LiveGame(
+        event_id=event_id,
+        season=int(selection["season"]),
+        season_type=season_type,
+        season_label=_SEASON_TYPE_LABELS.get(season_type),
+        week=selection["week"],
+        name=selection.get("name"),
+        short_name=selection.get("short_name"),
+        state=state,
+        completed=bool(status_type.get("completed")),
+        status_detail=status_type.get("detail") or status_type.get("description"),
+        period=status.get("period") or None,
+        clock=status.get("displayClock"),
+        kickoff=_parse_espn_datetime(competition.get("date")),
+        venue=venue.get("fullName"),
+        venue_city=address.get("city"),
+        venue_state=address.get("state"),
+        attendance=game_info.get("attendance"),
+        broadcast=selection.get("network"),
+        # A forecast is only worth showing before the game; afterwards the
+        # attendance and the result are the facts that matter.
+        temperature=weather.get("temperature") if state == "pre" else None,
+        precipitation=weather.get("precipitation") if state == "pre" else None,
+        line=line,
+        over_under=over_under,
+        panthers=panthers,
+        opponent=opponent,
+        situation=_situation(competition, panthers, opponent) if state == "in" else None,
+        team_stats=_team_stats(payload.get("boxscore") or {}),
+        scoring_plays=_scoring_plays(payload, panthers.home),
+        drives=_drives(payload, panthers.home),
+        win_probability=_win_probability(payload, panthers.home),
+        leaders=_leaders(payload),
+        fetched_at=datetime.now(timezone.utc),
+    )
+
+    logger.info(
+        "Fetched live game %s (%s): %d stat rows, %d drives, %d win-prob points",
+        event_id,
+        state,
+        len(game.team_stats),
+        len(game.drives),
+        len(game.win_probability),
+    )
+    return game

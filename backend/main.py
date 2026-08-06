@@ -36,6 +36,7 @@ from models import (
     Game,
     GameLine,
     Injury,
+    LiveGame,
     Odds,
     Player,
     Post,
@@ -52,6 +53,7 @@ from sources import (
     fetch_futures,
     fetch_game_odds,
     fetch_injuries,
+    fetch_live_game,
     fetch_panthers_articles,
     fetch_panthers_roster,
     fetch_panthers_schedule,
@@ -84,6 +86,18 @@ ODDS_CACHE_TTL_SECONDS = int(os.getenv("ODDS_CACHE_TTL_SECONDS", "900"))
 # through a small pool: enough to keep that off the critical path, low enough
 # not to arrive at ESPN as a burst.
 ODDS_FETCH_WORKERS = int(os.getenv("ODDS_FETCH_WORKERS", "6"))
+# The live game is the one thing here that genuinely moves by the second, so its
+# TTL is picked from the game's own state rather than being fixed — see
+# `_live_ttl`. These are the three states it chooses between.
+LIVE_CACHE_TTL_SECONDS = int(os.getenv("LIVE_CACHE_TTL_SECONDS", "15"))
+# Nothing about a scheduled game changes, but the flip to "in progress" has to be
+# noticed promptly, so the wait shortens as kickoff approaches.
+LIVE_PREGAME_TTL_SECONDS = int(os.getenv("LIVE_PREGAME_TTL_SECONDS", "300"))
+LIVE_KICKOFF_TTL_SECONDS = int(os.getenv("LIVE_KICKOFF_TTL_SECONDS", "30"))
+LIVE_KICKOFF_WINDOW_SECONDS = int(os.getenv("LIVE_KICKOFF_WINDOW_SECONDS", "1800"))
+# A final box score is settled; ESPN still corrects stats for a while afterwards,
+# which is what this refetch is for rather than anything a viewer is waiting on.
+LIVE_FINAL_TTL_SECONDS = int(os.getenv("LIVE_FINAL_TTL_SECONDS", "900"))
 # Published article bodies effectively never change.
 CONTENT_CACHE_TTL_SECONDS = int(os.getenv("CONTENT_CACHE_TTL_SECONDS", "86400"))
 CONTENT_CACHE_MAX_ENTRIES = int(os.getenv("CONTENT_CACHE_MAX_ENTRIES", "200"))
@@ -117,11 +131,16 @@ class ReadThroughCache:
         ttl_seconds: int,
         unavailable_detail: str,
         max_entries: Optional[int] = None,
+        ttl_of: Optional[Callable[[Any], int]] = None,
     ):
         self.name = name
         self.ttl_seconds = ttl_seconds
         self.unavailable_detail = unavailable_detail
         self.max_entries = max_entries
+        # Lets a cache set its own TTL from what it's holding. Only the live game
+        # needs this: the same payload is worth seconds during a game and an hour
+        # after it, and that is a property of the value, not of the route.
+        self.ttl_of = ttl_of
         self._entries: Dict[Hashable, _Entry] = {}
 
     def age_seconds(self, key: Hashable = None) -> Optional[float]:
@@ -129,6 +148,9 @@ class ReadThroughCache:
         if entry is None:
             return None
         return (datetime.now(timezone.utc) - entry.fetched_at).total_seconds()
+
+    def _ttl_for(self, value: Any) -> int:
+        return self.ttl_of(value) if self.ttl_of else self.ttl_seconds
 
     def size(self, key: Hashable = None) -> int:
         entry = self._entries.get(key)
@@ -147,7 +169,7 @@ class ReadThroughCache:
 
     def get(self, loader: Callable[[], Any], key: Hashable = None) -> Any:
         age = self.age_seconds(key)
-        if age is not None and age < self.ttl_seconds:
+        if age is not None and age < self._ttl_for(self._entries[key].value):
             return self._entries[key].value
 
         try:
@@ -180,6 +202,38 @@ _injuries_cache = ReadThroughCache(
     "injuries", INJURY_CACHE_TTL_SECONDS, "Injury report unavailable"
 )
 _odds_cache = ReadThroughCache("odds", ODDS_CACHE_TTL_SECONDS, "Odds unavailable")
+
+
+def _live_ttl(game: Optional[LiveGame]) -> int:
+    """How long a live-game snapshot stays good for.
+
+    A game in progress is worth refetching on the order of seconds; a scheduled
+    one changes only when it starts, so the only reason to poll it is to catch
+    that moment; a final one is done. Without this the route would either hammer
+    ESPN all week or lag a touchdown by ten minutes.
+    """
+    if game is None:
+        return LIVE_PREGAME_TTL_SECONDS
+    if game.state == "in":
+        return LIVE_CACHE_TTL_SECONDS
+    if game.state == "pre":
+        if game.kickoff is None:
+            return LIVE_PREGAME_TTL_SECONDS
+        until_kickoff = (game.kickoff - datetime.now(timezone.utc)).total_seconds()
+        return (
+            LIVE_KICKOFF_TTL_SECONDS
+            if until_kickoff <= LIVE_KICKOFF_WINDOW_SECONDS
+            else LIVE_PREGAME_TTL_SECONDS
+        )
+    return LIVE_FINAL_TTL_SECONDS
+
+
+_live_cache = ReadThroughCache(
+    "live",
+    LIVE_CACHE_TTL_SECONDS,
+    "Live game data unavailable",
+    ttl_of=_live_ttl,
+)
 _content_cache = ReadThroughCache(
     "content",
     CONTENT_CACHE_TTL_SECONDS,
@@ -312,6 +366,10 @@ def get_odds() -> Odds:
         return Odds(season=season, futures=season_futures, lines=_load_lines(season))
 
     return _odds_cache.get(load, key=season)
+
+
+def get_live_game() -> Optional[LiveGame]:
+    return _live_cache.get(fetch_live_game)
 
 
 def get_standings(season: int) -> Standings:
@@ -652,6 +710,22 @@ def odds() -> Odds:
     return get_odds()
 
 
+@app.get("/api/live", response_model=Optional[LiveGame])
+def live(response: Response) -> Optional[LiveGame]:
+    """The game in progress, or the next one, or the last one played.
+
+    Null when Carolina has no game on the current schedule.
+
+    Explicitly uncached downstream. Handing out a max-age here looks like free
+    protection but is a trap: the pre-game interval is minutes long, so a browser
+    that cached a "scheduled" response would keep replaying it past kickoff and
+    the client's own polling could not see the game start. The read-through cache
+    in this process is the one that matters, and answering from it is cheap.
+    """
+    response.headers["Cache-Control"] = "no-store"
+    return get_live_game()
+
+
 @app.get("/api/health")
 def health() -> dict:
     return {
@@ -665,6 +739,7 @@ def health() -> dict:
         "injuries_cache_age_seconds": _injuries_cache.age_seconds(),
         "cached_injuries": _injuries_cache.size(),
         "odds_cache_age_seconds": _odds_cache.age_seconds(current_season()),
+        "live_cache_age_seconds": _live_cache.age_seconds(),
         "cached_article_bodies": _content_cache.entry_count(),
         # Talk's schema came up at startup; `database` is checked live, so a
         # Neon instance that went away since boot shows here.

@@ -108,6 +108,151 @@ export interface Game {
   url: string | null;
 }
 
+// --- Live game ---------------------------------------------------------------
+export interface LiveTeam {
+  id: string;
+  abbreviation: string;
+  name: string;
+  short_name: string;
+  logo: string | null;
+  score: number | null;
+  record: string | null;
+  /** Points per quarter, in order. Empty until the first quarter ends. */
+  linescores: (number | null)[];
+  panthers: boolean;
+  home: boolean;
+}
+
+export interface LiveSituation {
+  possession: string | null;
+  down_distance: string | null;
+  short_down_distance: string | null;
+  spot: string | null;
+  yards_to_endzone: number | null;
+  last_play: string | null;
+  red_zone: boolean;
+  panthers_timeouts: number | null;
+  opponent_timeouts: number | null;
+}
+
+export interface StatPair {
+  key: string;
+  label: string;
+  panthers_display: string | null;
+  opponent_display: string | null;
+  /** What the bar length comes from; often not the number on screen. */
+  panthers_value: number | null;
+  opponent_value: number | null;
+}
+
+export interface ScoringPlay {
+  id: string;
+  period: number;
+  clock: string | null;
+  team_abbr: string | null;
+  panthers: boolean;
+  text: string;
+  type_abbr: string | null;
+  panthers_score: number;
+  opponent_score: number;
+}
+
+export interface Drive {
+  id: string;
+  team_abbr: string | null;
+  panthers: boolean;
+  description: string | null;
+  result: string | null;
+  period: number | null;
+  plays: number | null;
+  yards: number | null;
+  is_score: boolean;
+  /** Yards from Carolina's own goal line: 0 is their end zone, 100 the other. */
+  start_yard: number | null;
+  end_yard: number | null;
+  start_text: string | null;
+  end_text: string | null;
+  time_elapsed: string | null;
+}
+
+export interface WinProbPoint {
+  /** Seconds of game clock burned, so the x-axis is time and not play count. */
+  elapsed: number;
+  period: number;
+  panthers_pct: number;
+}
+
+export interface GameLeader {
+  category: string;
+  category_label: string;
+  team_abbr: string | null;
+  panthers: boolean;
+  name: string;
+  jersey: string | null;
+  position: string | null;
+  headshot: string | null;
+  display_value: string | null;
+}
+
+export interface LiveGame {
+  event_id: string;
+  season: number;
+  /** 1 preseason, 2 regular season, 3 postseason. */
+  season_type: number;
+  season_label: string | null;
+  week: number | null;
+  name: string | null;
+  short_name: string | null;
+  state: "pre" | "in" | "post";
+  completed: boolean;
+  status_detail: string | null;
+  period: number | null;
+  clock: string | null;
+  kickoff: string | null;
+  venue: string | null;
+  venue_city: string | null;
+  venue_state: string | null;
+  attendance: number | null;
+  broadcast: string | null;
+  temperature: number | null;
+  precipitation: number | null;
+  line: string | null;
+  over_under: number | null;
+  panthers: LiveTeam;
+  opponent: LiveTeam;
+  situation: LiveSituation | null;
+  team_stats: StatPair[];
+  scoring_plays: ScoringPlay[];
+  drives: Drive[];
+  win_probability: WinProbPoint[];
+  leaders: GameLeader[];
+  fetched_at: string | null;
+}
+
+/** Quarters are 15 minutes; the win-probability axis is measured in them. */
+export const QUARTER_SECONDS = 900;
+
+/** "Q2 8:42" — where a play sits on the game clock.
+ *
+ * Takes the period rather than deriving it from `elapsed`, because a multiple of
+ * 900 is ambiguous between the end of one quarter and the start of the next.
+ */
+export function periodClock(elapsed: number, period: number): string {
+  const remaining = Math.max(
+    0,
+    QUARTER_SECONDS - (elapsed - (period - 1) * QUARTER_SECONDS),
+  );
+  const minutes = Math.floor(remaining / 60);
+  const seconds = remaining % 60;
+  return `${periodLabel(period)} ${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+/** "Q3", or "OT" past regulation. */
+export function periodLabel(period: number): string {
+  if (period <= 4) return `Q${period}`;
+  return period === 5 ? "OT" : `OT${period - 4}`;
+}
+
 export interface TeamStanding {
   team_id: string;
   name: string;
@@ -271,6 +416,23 @@ export function fetchInjuries(): Promise<Injury[]> {
 
 export function fetchOdds(): Promise<Odds> {
   return cached("odds", () => getJSON<Odds>("/api/odds"));
+}
+
+/** The live game, deliberately outside `cached()`.
+ *
+ * That cache never invalidates, which is right for a roster and exactly wrong
+ * for a score. The last response is kept here instead so returning to the tab
+ * paints the previous snapshot immediately rather than a skeleton, while the
+ * poll that starts on mount replaces it a moment later.
+ */
+let _lastLive: LiveGame | null = null;
+
+export const peekLive = (): LiveGame | null => _lastLive;
+
+export async function fetchLive(): Promise<LiveGame | null> {
+  const game = await getJSON<LiveGame | null>("/api/live");
+  _lastLive = game;
+  return game;
 }
 
 // --- Talk --------------------------------------------------------------------

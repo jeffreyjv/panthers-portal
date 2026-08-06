@@ -18,6 +18,16 @@
   --status-doubtful: #f0a44a;
   --status-questionable: #ffd35c;
 
+  /* Chart series. Two slots, one per side of the game — Carolina's own blue
+     against a warm hue, which is the pairing colour-vision deficiency handles
+     best. Both steps are picked for this mode's surface (--panel) rather than
+     being a brightness tweak of the light ones: validated at OKLCH L inside the
+     dark band, chroma above the identity floor, adjacent CVD ΔE 25.4 and
+     normal-vision ΔE 31.4, all ≥ 3:1 against the panel. Changing either value
+     means re-validating the pair, not eyeballing it. */
+  --viz-car: #0d97dc;
+  --viz-opp: #d95926;
+
   --page-wash: rgba(0, 133, 202, 0.14);
   --masthead-bg: rgba(11, 14, 17, 0.82);
   --shadow-card: 0 18px 34px rgba(0, 0, 0, 0.5);
@@ -46,6 +56,11 @@
   --status-out: #c0392b;
   --status-doubtful: #a4610d;
   --status-questionable: #7d6410;
+
+  /* The same two hues, stepped for white: CVD ΔE 21.6, normal-vision ΔE 32.1,
+     both ≥ 3:1 on the panel. */
+  --viz-car: #0085ca;
+  --viz-opp: #eb6834;
 
   --page-wash: rgba(0, 133, 202, 0.16);
   --masthead-bg: rgba(255, 255, 255, 0.85);
@@ -2217,6 +2232,975 @@ a {
 
 @media (max-width: 620px) {
   .game-odds {
+    display: none;
+  }
+}
+
+/* ---------- Live game ---------- */
+/* A refetch replaces the whole snapshot, so the previous render is held at
+   reduced opacity rather than dropped back to skeletons — the score dimming for
+   a moment reads as "updating", a flash of empty boxes reads as broken. */
+.live.is-refreshing {
+  opacity: 0.72;
+}
+
+.live {
+  transition: opacity 140ms ease-out;
+}
+
+.live-matchup {
+  margin: -0.5rem 0 1.1rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  color: var(--silver-dim);
+}
+
+/* --- Scoreboard --- */
+.live-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem 1.5rem;
+  align-items: center;
+  padding: 1.15rem 1.3rem;
+  margin-bottom: 1.1rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+
+.live-board-teams {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+/* The left rule is in the team's own series colour, so the scoreboard and the
+   charts below it identify the two sides the same way. */
+.live-team {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding-left: 0.7rem;
+  border-left: 3px solid var(--viz-opp);
+}
+
+.live-team.is-car {
+  border-left-color: var(--viz-car);
+}
+
+.live-team-logo {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+
+.live-team-name {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  min-width: 0;
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.live-team-name small {
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--silver-dim);
+}
+
+/* Proportional figures on purpose: at this size tabular digits make a score
+   like "17" sit loose. */
+.live-team-score {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800;
+  font-size: 2.1rem;
+  line-height: 1;
+  color: var(--silver);
+}
+
+.live-team-score.is-leading {
+  color: var(--ink);
+}
+
+.live-board-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  text-align: right;
+}
+
+.live-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.15;
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.live-status small {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--silver-dim);
+}
+
+.live-status.is-live {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--viz-car);
+}
+
+.live-status.is-final {
+  color: var(--silver);
+}
+
+.live-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--viz-car);
+  animation: live-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 var(--blue-glow);
+  }
+  50% {
+    opacity: 0.55;
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-pulse {
+    animation: none;
+  }
+}
+
+.live-network {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--silver-dim);
+}
+
+/* --- Live situation --- */
+.live-situation {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.7rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+}
+
+.live-situation-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.live-poss,
+.live-down {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--silver);
+}
+
+.live-down {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.live-redzone {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--status-out);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.live-lastplay {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--silver);
+}
+
+.live-lastplay span {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--silver-dim);
+  margin-bottom: 0.15rem;
+}
+
+/* --- Field position --- */
+.fieldpos {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.fieldpos-end {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--silver-dim);
+}
+
+.fieldpos-track {
+  position: relative;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+
+/* Yard lines every 25, drawn as background rather than as elements. */
+.fieldpos-grid,
+.drivechart-grid {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--border) 0 1px,
+    transparent 1px 25%
+  );
+}
+
+.fieldpos-ball {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 50%;
+  transform: translateY(-50%);
+  background: var(--viz-opp);
+  /* A ring in the surface colour keeps the marker legible where it lands on a
+     yard line. */
+  box-shadow: 0 0 0 2px var(--panel);
+}
+
+.fieldpos-ball.is-car {
+  background: var(--viz-car);
+}
+
+/* --- Game meta --- */
+.live-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem 1.6rem;
+  padding: 0.85rem 1.1rem;
+  margin-bottom: 1.1rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.live-meta-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.live-meta-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--silver-dim);
+}
+
+.live-meta-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.live-footnote {
+  margin: 1.5rem 0 0;
+  font-size: 0.72rem;
+  color: var(--silver-dim);
+}
+
+/* ---------- Charts ---------- */
+/* Every chart sits in one of these: a card, a head, the plot, a legend, and an
+   optional table twin. Shared so the four visualizations on the Live tab read as
+   one system rather than four separate widgets. */
+.viz {
+  padding: 1.1rem 1.3rem 1rem;
+  margin-bottom: 1.1rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.viz-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.viz-title {
+  margin: 0;
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.viz-note {
+  margin-left: auto;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  color: var(--silver-dim);
+  text-align: right;
+}
+
+/* The identity channel that doesn't depend on telling two hues apart. */
+.viz-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.1rem;
+  list-style: none;
+  margin: 0.8rem 0 0;
+  padding: 0;
+}
+
+.viz-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  /* Text tokens, never the series colour — a swatch beside the label carries
+     identity, so the label itself stays legible. */
+  color: var(--silver);
+}
+
+.viz-swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--viz-opp);
+  flex: none;
+}
+
+.viz-swatch.is-car {
+  background: var(--viz-car);
+}
+
+/* --- SVG marks --- */
+.viz-plot {
+  position: relative;
+}
+
+.viz-plot svg {
+  display: block;
+  overflow: visible;
+}
+
+.viz-plot svg:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.viz-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+/* Even money — the line the whole win-probability chart is read against, so it
+   sits a step stronger than the quarter grid and over the fills. */
+.viz-baseline {
+  stroke: var(--silver-dim);
+  stroke-width: 1;
+  opacity: 0.7;
+}
+
+/* 11px rather than 10: at 10 the condensed "Q" in a quarter label loses its
+   tail and reads as a zero. */
+.viz-tick {
+  fill: var(--silver-dim);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+
+.viz-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.viz-line.is-car {
+  stroke: var(--viz-car);
+}
+
+/* A wash, not a block: the fill says which side of even, the line says how far. */
+.viz-area {
+  stroke: none;
+  opacity: 0.16;
+}
+
+.viz-area.is-car {
+  fill: var(--viz-car);
+}
+
+.viz-area.is-opp {
+  fill: var(--viz-opp);
+}
+
+.viz-dot {
+  stroke: var(--panel);
+  stroke-width: 2;
+}
+
+.viz-dot.is-car {
+  fill: var(--viz-car);
+}
+
+.viz-end-label {
+  fill: var(--ink);
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.viz-cursor line {
+  stroke: var(--silver-dim);
+  stroke-width: 1;
+}
+
+.viz-tooltip {
+  position: absolute;
+  top: 0;
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.45rem 0.6rem;
+  /* Clear of the crosshair it belongs to, and out of the pointer's way. */
+  margin-left: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-card);
+  font-size: 0.74rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  color: var(--ink);
+}
+
+.viz-tooltip span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.viz-tooltip-when {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--silver-dim);
+}
+
+/* --- Table twin --- */
+/* Nothing on these charts is reachable only by hovering: the numbers behind
+   every mark live here too. */
+.viz-table {
+  margin-top: 0.9rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.6rem;
+}
+
+.viz-table > summary {
+  cursor: pointer;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--silver-dim);
+}
+
+.viz-table > summary:hover {
+  color: var(--silver);
+}
+
+.viz-table > summary:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+/* Wide tables scroll inside their own box; the page never scrolls sideways. */
+.viz-table-scroll {
+  overflow-x: auto;
+  margin-top: 0.6rem;
+}
+
+.viz-data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.viz-data th,
+.viz-data td {
+  padding: 0.35rem 0.6rem;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.viz-data thead th {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--silver-dim);
+}
+
+.viz-data tbody th,
+.viz-data td:first-child {
+  text-align: left;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.viz-data tbody td {
+  color: var(--silver);
+}
+
+.viz-data tbody tr:last-child th,
+.viz-data tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.viz-data tbody th .viz-swatch,
+.viz-data td .viz-swatch {
+  margin-right: 0.4rem;
+  vertical-align: 0.02em;
+}
+
+/* --- Linescore --- */
+.linescore th[scope="col"],
+.linescore td {
+  min-width: 2.4rem;
+}
+
+.linescore-total {
+  font-weight: 800;
+  color: var(--ink) !important;
+}
+
+/* --- Paired stat bars --- */
+/* Mirrored around the label: each row is one measure on one scale, both sides
+   drawn against the larger of the two. Every value is printed at its bar's tip,
+   so the bars show the gap and the numbers carry the detail. */
+.statbars {
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.statbar {
+  display: grid;
+  grid-template-columns: 3.4rem minmax(0, 1fr) 8.5rem minmax(0, 1fr) 3.4rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.statbar-value {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.statbar-value.is-car {
+  text-align: right;
+}
+
+.statbar-label {
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--silver-dim);
+}
+
+.statbar-track {
+  height: 10px;
+  border-radius: 3px;
+  background: var(--panel-2);
+  overflow: hidden;
+  display: flex;
+}
+
+/* Carolina's bar grows leftward out of the centre gutter, the opponent's
+   rightward, so the two are read as one comparison rather than two lists. */
+.statbar-track.is-car {
+  justify-content: flex-end;
+}
+
+.statbar-fill {
+  height: 100%;
+  background: var(--viz-opp);
+  /* Rounded at the data end, square where it meets the baseline. */
+  border-radius: 0 3px 3px 0;
+  transition: width 220ms ease-out;
+}
+
+.statbar-fill.is-car {
+  background: var(--viz-car);
+  border-radius: 3px 0 0 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .statbar-fill {
+    transition: none;
+  }
+}
+
+/* --- Drive chart --- */
+/* A range per drive on a shared 100-yard field, Carolina attacking rightward.
+   Both ends of a bar are data — where the drive started and where it stalled —
+   so both ends are rounded, unlike a bar grown from a baseline. */
+.drivechart {
+  margin-top: 0.9rem;
+}
+
+.drivechart-axis,
+.driverow {
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr) 6.5rem;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.drivechart-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--silver-dim);
+}
+
+/* The 25s sit on their yard lines rather than beside them, so the two outer
+   labels hang half off the field's ends and have to be pulled back in. */
+.drivechart-scale span:first-child {
+  margin-left: -0.2rem;
+}
+
+.drivechart-scale span:last-child {
+  margin-right: -0.2rem;
+}
+
+.drivechart-rows {
+  position: relative;
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+/* One underlay for the whole field instead of yard lines per row. */
+.drivechart-grid {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(2.2rem + 0.6rem);
+  right: calc(6.5rem + 0.6rem);
+  border-right: 1px solid var(--border);
+  pointer-events: none;
+}
+
+.driverow-period {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--silver-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.driverow-track {
+  position: relative;
+  height: 14px;
+}
+
+.driverow-bar {
+  position: absolute;
+  top: 50%;
+  height: 9px;
+  transform: translateY(-50%);
+  border-radius: 4px;
+  background: var(--viz-opp);
+  /* A three-and-out that lost yards still has to be visible. */
+  min-width: 3px;
+}
+
+.driverow-bar.is-car {
+  background: var(--viz-car);
+}
+
+/* A drive that scored gets a ring rather than a different hue — the colour slot
+   is spent on identity, and inventing a third one would break that. */
+.driverow-bar.is-score {
+  box-shadow: 0 0 0 1px var(--panel), 0 0 0 2px currentColor;
+  color: var(--silver);
+}
+
+.driverow-result {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--silver);
+  /* Long results ("Blocked Punt Touchdown") truncate here and stay whole in the
+     drive log below. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Scoring summary --- */
+.scorelog {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.scorelog-item {
+  display: grid;
+  grid-template-columns: 3rem 2.2rem minmax(0, 1fr) 4.2rem;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  border-left: 3px solid var(--viz-opp);
+  background: var(--panel-2);
+}
+
+.scorelog-item.is-car {
+  border-left-color: var(--viz-car);
+}
+
+.scorelog-when {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--silver);
+  font-variant-numeric: tabular-nums;
+}
+
+.scorelog-when small {
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: var(--silver-dim);
+}
+
+.scorelog-type {
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: center;
+  padding: 0.1rem 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--silver);
+}
+
+.scorelog-text {
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.scorelog-score {
+  text-align: right;
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* --- Game leaders --- */
+.leadergrid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+}
+
+.leadercard {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 10px;
+  background: var(--panel-2);
+  border-left: 3px solid var(--viz-opp);
+}
+
+.leadercard.is-car {
+  border-left-color: var(--viz-car);
+}
+
+.leadercard-cat {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--silver-dim);
+}
+
+.leadercard-who {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.leadercard-shot {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--panel);
+  flex: none;
+}
+
+.leadercard-name {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--ink);
+}
+
+.leadercard-name small {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--silver-dim);
+}
+
+.leadercard-stat {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+/* --- Narrow screens --- */
+@media (max-width: 760px) {
+  .live-board {
+    grid-template-columns: 1fr;
+  }
+
+  .live-board-status {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .live-status,
+  .live-status.is-live {
+    align-items: center;
+    flex-direction: row;
+    gap: 0.5rem;
+  }
+
+  /* The label gutter is the first thing to give: the numbers and the bars are
+     what the comparison is for. */
+  .statbar {
+    grid-template-columns: 2.9rem minmax(0, 1fr) 6rem minmax(0, 1fr) 2.9rem;
+    gap: 0.35rem;
+  }
+
+  .statbar-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.04em;
+  }
+
+  .drivechart-axis,
+  .driverow {
+    grid-template-columns: 1.7rem minmax(0, 1fr) 4.2rem;
+    gap: 0.4rem;
+  }
+
+  .drivechart-grid {
+    left: calc(1.7rem + 0.4rem);
+    right: calc(4.2rem + 0.4rem);
+  }
+
+  .scorelog-item {
+    grid-template-columns: 2.6rem minmax(0, 1fr) 3.6rem;
+    row-gap: 0.3rem;
+  }
+
+  /* Dropped rather than shrunk: the play text already names the score type. */
+  .scorelog-type {
     display: none;
   }
 }

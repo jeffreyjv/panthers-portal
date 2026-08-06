@@ -124,6 +124,183 @@ class Odds(BaseModel):
     lines: Dict[int, GameLine] = {}
 
 
+# --- Live game ---------------------------------------------------------------
+class LiveTeam(BaseModel):
+    """One side of the game being followed."""
+
+    id: str
+    abbreviation: str
+    name: str
+    short_name: str
+    logo: Optional[str] = None
+    score: Optional[int] = None
+    # "0-0" before anything is played; preseason records stay at 0-0 all August.
+    record: Optional[str] = None
+    # Points per quarter, in order. Empty until the first quarter ends; a
+    # trailing None is a quarter still being played.
+    linescores: List[Optional[int]] = []
+    panthers: bool = False
+    home: bool = False
+
+
+class LiveSituation(BaseModel):
+    """Where the ball is, right now. Only ever populated while a game is live."""
+
+    # Whose ball it is, as an abbreviation, so the client doesn't match team ids.
+    possession: Optional[str] = None
+    # "2nd & 7 at CAR 45" and its short form "2nd & 7".
+    down_distance: Optional[str] = None
+    short_down_distance: Optional[str] = None
+    # "CAR 45" — where the ball is spotted.
+    spot: Optional[str] = None
+    # Distance to the end zone the offense is attacking, for the field graphic.
+    yards_to_endzone: Optional[int] = None
+    last_play: Optional[str] = None
+    red_zone: bool = False
+    panthers_timeouts: Optional[int] = None
+    opponent_timeouts: Optional[int] = None
+
+
+class StatPair(BaseModel):
+    """One team stat, both sides, ready to draw as a pair of bars.
+
+    `*_display` is what a reader sees ("3-11", "31:58"); `*_value` is the number
+    the bar length comes from. They differ often enough — a possession time is
+    read as a clock and drawn as seconds — that keeping one field for both would
+    force the client to reparse ESPN's formatting.
+    """
+
+    key: str
+    label: str
+    panthers_display: Optional[str] = None
+    opponent_display: Optional[str] = None
+    panthers_value: Optional[float] = None
+    opponent_value: Optional[float] = None
+
+
+class ScoringPlay(BaseModel):
+    """One score, with the game score it produced."""
+
+    id: str
+    period: int
+    clock: Optional[str] = None
+    team_abbr: Optional[str] = None
+    panthers: bool = False
+    text: str
+    # "TD" | "FG" | "SF" ...
+    type_abbr: Optional[str] = None
+    panthers_score: int = 0
+    opponent_score: int = 0
+
+
+class Drive(BaseModel):
+    """One drive, with its field position normalized to Carolina's perspective.
+
+    `start_yard` and `end_yard` are yards from Carolina's own goal line: 0 is
+    Carolina's end zone, 100 is the opponent's. ESPN reports them from the home
+    team's goal line instead, which flips meaning depending on who is hosting —
+    doing that conversion here keeps one convention on the wire and lets the
+    drive chart draw the field the same way every week.
+    """
+
+    id: str
+    team_abbr: Optional[str] = None
+    panthers: bool = False
+    # "10 plays, 42 yards, 4:10"
+    description: Optional[str] = None
+    result: Optional[str] = None
+    period: Optional[int] = None
+    plays: Optional[int] = None
+    yards: Optional[int] = None
+    is_score: bool = False
+    start_yard: Optional[int] = None
+    end_yard: Optional[int] = None
+    start_text: Optional[str] = None
+    end_text: Optional[str] = None
+    time_elapsed: Optional[str] = None
+
+
+class WinProbPoint(BaseModel):
+    """Carolina's win probability after one play.
+
+    `elapsed` is seconds of game clock burned, so the chart has a real time axis
+    rather than a play-index one — plays are not evenly spaced in time, and a
+    17-play drive would otherwise stretch across the same width as a three-and-out.
+    """
+
+    elapsed: int
+    period: int
+    panthers_pct: float
+
+
+class GameLeader(BaseModel):
+    """One team's leader in one statistical category."""
+
+    category: str
+    category_label: str
+    team_abbr: Optional[str] = None
+    panthers: bool = False
+    name: str
+    jersey: Optional[str] = None
+    position: Optional[str] = None
+    headshot: Optional[str] = None
+    # ESPN's own phrasing: "16/24, 121 YDS".
+    display_value: Optional[str] = None
+
+
+class LiveGame(BaseModel):
+    """Everything the Live tab renders, for whichever game matters right now.
+
+    Populated progressively: before kickoff only the matchup, venue, weather and
+    line exist; the stats, drives and win probability arrive as the game is
+    played. Every list therefore defaults to empty rather than being optional —
+    a section with nothing in it is hidden, not an error.
+    """
+
+    event_id: str
+    # 1 preseason, 2 regular season, 3 postseason — ESPN's numbering.
+    season: int
+    season_type: int
+    season_label: Optional[str] = None
+    week: Optional[int] = None
+    name: Optional[str] = None
+    short_name: Optional[str] = None
+
+    # "pre" | "in" | "post"
+    state: str = "pre"
+    completed: bool = False
+    # "Final", "8:00 PM EDT", "10:32 - 2nd"
+    status_detail: Optional[str] = None
+    period: Optional[int] = None
+    clock: Optional[str] = None
+
+    kickoff: Optional[datetime] = None
+    venue: Optional[str] = None
+    venue_city: Optional[str] = None
+    venue_state: Optional[str] = None
+    attendance: Optional[int] = None
+    broadcast: Optional[str] = None
+    # Only a scheduled game has a forecast worth showing.
+    temperature: Optional[int] = None
+    precipitation: Optional[int] = None
+    # The line, phrased as the book prints it: "CAR -1.5".
+    line: Optional[str] = None
+    over_under: Optional[float] = None
+
+    panthers: LiveTeam
+    opponent: LiveTeam
+
+    situation: Optional[LiveSituation] = None
+    team_stats: List[StatPair] = []
+    scoring_plays: List[ScoringPlay] = []
+    drives: List[Drive] = []
+    win_probability: List[WinProbPoint] = []
+    leaders: List[GameLeader] = []
+
+    # When this snapshot was taken, so the client can say how stale it is.
+    fetched_at: Optional[datetime] = None
+
+
 class Injury(BaseModel):
     """One line on the injury report.
 
