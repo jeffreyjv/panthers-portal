@@ -29,6 +29,12 @@
   --viz-opp: #d95926;
 
   --page-wash: rgba(0, 133, 202, 0.14);
+
+  /* Bottom-anchored ambient glow. Two steps of the same blue so the blooms read
+     as one light source with depth, not two separate spots. */
+  --aurora-a: rgba(0, 133, 202, 0.26);
+  --aurora-b: rgba(22, 163, 234, 0.18);
+
   --masthead-bg: rgba(11, 14, 17, 0.82);
   /* The same colour at full opacity, for where the frost has to be given up. */
   --masthead-solid: #0b0e11;
@@ -65,6 +71,12 @@
   --viz-opp: #eb6834;
 
   --page-wash: rgba(0, 133, 202, 0.16);
+
+  /* Held near the dark values — blue at this alpha stays subtle on #eef1f5,
+     and dropping it further makes the glow disappear entirely in light mode. */
+  --aurora-a: rgba(0, 133, 202, 0.26);
+  --aurora-b: rgba(0, 105, 163, 0.17);
+
   --masthead-bg: rgba(255, 255, 255, 0.85);
   --masthead-solid: #ffffff;
   --shadow-card: 0 18px 34px rgba(15, 30, 45, 0.14);
@@ -101,6 +113,79 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* ---------- Ambient aurora ---------- */
+/* Two soft blue blooms pinned to the bottom of the viewport, drifting past each
+   other on mismatched cycles so the loop never visibly repeats. Fixed rather than
+   absolute: the glow holds still while the page scrolls, which reads as light in
+   the room instead of an element sitting above the footer.
+
+   Sits at z-index -1, which paints above the canvas (body's background propagates
+   there, since html sets no background of its own) and below every panel. Only
+   transform and opacity animate, so this stays on the compositor and off the
+   paint path. */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  /* Pushed below the fold so only the top arc of each bloom is visible — the
+     hard-edged bottom half never shows. */
+  bottom: -30vh;
+  z-index: -1;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+body::before {
+  left: -10vw;
+  width: 70vw;
+  height: 60vh;
+  background: radial-gradient(closest-side, var(--aurora-a), transparent);
+  animation: aurora-a 48s ease-in-out infinite alternate;
+}
+
+body::after {
+  right: -10vw;
+  width: 60vw;
+  height: 55vh;
+  background: radial-gradient(closest-side, var(--aurora-b), transparent);
+  animation: aurora-b 62s ease-in-out infinite alternate;
+}
+
+/* 48s against 62s: far enough apart that the two blooms don't fall back into
+   sync within any plausible session. */
+@keyframes aurora-a {
+  from {
+    transform: translate3d(-6vw, 4vh, 0) scale(1);
+    opacity: 0.75;
+  }
+  to {
+    transform: translate3d(8vw, -3vh, 0) scale(1.15);
+    opacity: 1;
+  }
+}
+
+@keyframes aurora-b {
+  from {
+    transform: translate3d(5vw, -2vh, 0) scale(1.1);
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(-7vw, 5vh, 0) scale(0.95);
+    opacity: 0.7;
+  }
+}
+
+/* The glow stays — it's part of the page's colour, not an animation. It just
+   stops moving. The global reduced-motion rule below only kills transitions,
+   not animations, so this has to be said explicitly. */
+@media (prefers-reduced-motion: reduce) {
+  body::before,
+  body::after {
+    animation: none;
+    opacity: 0.85;
+  }
 }
 
 a {
