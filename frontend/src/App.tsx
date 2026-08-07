@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ClawMark } from "./ClawMark";
 import { Countdown } from "./Countdown";
 import { Live } from "./Live";
+import { useLive } from "./liveStore";
 import { News } from "./News";
 import { Schedule } from "./Schedule";
 import { SocialLinks } from "./SocialLinks";
@@ -79,11 +80,13 @@ function Header({
   onToggleTheme,
   tab,
   onSelectTab,
+  gameIsLive,
 }: {
   theme: Theme;
   onToggleTheme: () => void;
   tab: Tab;
   onSelectTab: (t: Tab) => void;
+  gameIsLive: boolean;
 }) {
   return (
     <header className="masthead">
@@ -92,21 +95,29 @@ function Header({
           <ClawMark className="brand-claw" />
           <span className="brand-team">Panthers Portal</span>
         </div>
-        <Countdown />
-        <div className="masthead-tools">
-          <nav className="tabs" aria-label="Sections">
-            {TABS.map((t) => (
+        <nav className="tabs" aria-label="Sections">
+          {TABS.map((t) => {
+            // Only the Live tab, and only while the ball is actually in play.
+            const live = t.id === "live" && gameIsLive;
+            return (
               <button
                 key={t.id}
                 type="button"
-                className={`tab${t.id === tab ? " is-active" : ""}`}
+                className={`tab${t.id === tab ? " is-active" : ""}${
+                  live ? " is-live" : ""
+                }`}
                 aria-current={t.id === tab ? "page" : undefined}
+                aria-label={live ? `${t.label} — game in progress` : undefined}
                 onClick={() => onSelectTab(t.id)}
               >
+                {live && <span className="tab-live-dot" aria-hidden="true" />}
                 {t.label}
               </button>
-            ))}
-          </nav>
+            );
+          })}
+        </nav>
+        <div className="masthead-tools">
+          <Countdown />
           <SocialLinks label="Panthers on social media" />
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         </div>
@@ -133,6 +144,9 @@ function initialTab(): Tab {
 export default function App() {
   const { theme, toggle } = useTheme();
   const [tab, setTab] = useState<Tab>(initialTab);
+  // Subscribing here keeps the shared poll running on every tab, which is the
+  // point: the Live tab has to be able to flag a kickoff you aren't watching.
+  const { game } = useLive();
 
   // Otherwise switching tabs while scrolled down drops you mid-page.
   useEffect(() => {
@@ -146,6 +160,7 @@ export default function App() {
         onToggleTheme={toggle}
         tab={tab}
         onSelectTab={setTab}
+        gameIsLive={game?.state === "in"}
       />
 
       <main className="main">

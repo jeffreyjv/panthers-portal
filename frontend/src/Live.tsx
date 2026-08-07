@@ -1,13 +1,10 @@
-import { useEffect, useRef, useState } from "react";
 import {
   GameLeader,
   LiveGame,
   LiveTeam,
   ScoringPlay,
-  fetchLive,
   gameDate,
   gameTime,
-  peekLive,
   periodLabel,
   relativeTime,
 } from "./api";
@@ -18,85 +15,7 @@ import {
   StatComparison,
   WinProbabilityChart,
 } from "./GameCharts";
-
-type Status = "loading" | "error" | "ready";
-
-/** How often to ask again, in milliseconds.
- *
- * Matched to how fast the thing being watched actually moves: a live game is
- * worth seconds, a scheduled one only needs to be caught starting, and a final
- * box score is finished. The server caches on the same schedule, so polling
- * faster than this would mostly re-read its own cache anyway.
- */
-function pollInterval(game: LiveGame | null): number | null {
-  if (!game) return 5 * 60_000;
-  if (game.state === "in") return 20_000;
-  if (game.state === "post") return null;
-
-  if (!game.kickoff) return 5 * 60_000;
-  const untilKickoff = new Date(game.kickoff).getTime() - Date.now();
-  return untilKickoff <= 30 * 60_000 ? 30_000 : 5 * 60_000;
-}
-
-/** Polls the live endpoint, and refetches whenever the tab is looked at again.
- *
- * A background tab is throttled by the browser, so coming back to one that has
- * been open since the first quarter would otherwise show a stale score for up to
- * a full interval — the visibility refetch is what makes returning feel live.
- */
-function useLiveGame() {
-  const preloaded = peekLive();
-  const [game, setGame] = useState<LiveGame | null>(preloaded);
-  const [status, setStatus] = useState<Status>(preloaded ? "ready" : "loading");
-  const [refreshing, setRefreshing] = useState(false);
-  const interval = useRef<number | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    let timer: number | undefined;
-
-    const load = async () => {
-      // Only the very first load shows skeletons; a refetch holds the previous
-      // render so the page doesn't flash between snapshots.
-      if (active && game) setRefreshing(true);
-      try {
-        const next = await fetchLive();
-        if (!active) return;
-        setGame(next);
-        setStatus("ready");
-        interval.current = pollInterval(next);
-      } catch {
-        if (active) setStatus((s) => (s === "ready" ? s : "error"));
-      } finally {
-        if (active) setRefreshing(false);
-      }
-      if (active) schedule();
-    };
-
-    const schedule = () => {
-      window.clearTimeout(timer);
-      if (interval.current !== null) {
-        timer = window.setTimeout(load, interval.current);
-      }
-    };
-
-    const onVisible = () => {
-      if (document.visibilityState === "visible") load();
-    };
-
-    load();
-    document.addEventListener("visibilitychange", onVisible);
-
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return { game, status, refreshing };
-}
+import { useLive } from "./liveStore";
 
 /** The clock, phrased the way the state calls for. */
 function StatusBadge({ game }: { game: LiveGame }) {
@@ -383,7 +302,7 @@ function Skeleton() {
 }
 
 export function Live() {
-  const { game, status, refreshing } = useLiveGame();
+  const { game, status, refreshing } = useLive();
 
   if (status === "loading") {
     return (

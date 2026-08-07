@@ -134,8 +134,9 @@ a {
 
 /* Unlike .main, this one runs the full width of the window — the brand and the
    tools sit at the edges rather than inside the 1120px content rail. The three
-   columns are what keep the countdown dead-centre no matter how wide the brand
-   or the tab row get; space-between would push it off-centre instead. */
+   columns are what keep the tab row dead-centre in the window no matter how
+   wide the brand or the tools get; space-between would push it off-centre
+   instead. */
 .masthead-inner {
   /* The insets are 0 everywhere except a notched phone in landscape, where
      they keep the brand and tabs clear of the rounded corners. */
@@ -147,11 +148,20 @@ a {
   gap: 1rem;
 }
 
-.masthead-inner > .countdown {
+/* Both are pinned to their track rather than left to auto-placement, so the
+   tab row holds the centre track even when a neighbour's contents change size
+   — the countdown inside the tools is absent whenever there's no future
+   kickoff, most obviously during a live game. */
+.masthead-inner > .tabs {
+  grid-column: 2;
   justify-self: center;
+  /* The centre track is `auto`, so it can still be squeezed by a wide brand;
+     this lets the row scroll rather than push the page sideways. */
+  min-width: 0;
 }
 
 .masthead-inner > .masthead-tools {
+  grid-column: 3;
   justify-self: end;
 }
 
@@ -338,6 +348,66 @@ a {
 .tab:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
+}
+
+/* A game is on. The Live tab is the only one that ever animates, and only for
+   the ~3 hours it's true — the whole point is that it reads as an exception
+   from whatever tab you happen to be sitting on. */
+.tab.is-live {
+  color: var(--ink);
+}
+
+.tab.is-live:not(.is-active) {
+  animation: tab-live-halo 2.4s ease-in-out infinite;
+}
+
+.tab-live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 0.42rem;
+  vertical-align: 0.06em;
+  border-radius: 50%;
+  background: var(--viz-car);
+  animation: tab-live-dot 1.8s ease-in-out infinite;
+}
+
+/* The active pill is already Carolina blue, so the blue dot vanishes into it. */
+.tab.is-live.is-active .tab-live-dot {
+  background: #fff;
+}
+
+@keyframes tab-live-dot {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 var(--blue-glow);
+  }
+  50% {
+    opacity: 0.5;
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+
+@keyframes tab-live-halo {
+  0%,
+  100% {
+    background: none;
+    box-shadow: 0 0 0 0 var(--blue-glow);
+  }
+  50% {
+    background: var(--panel-2);
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+
+/* Blinking is exactly the thing this setting is asking us not to do. The dot
+   stays — it still marks the tab, it just holds still. */
+@media (prefers-reduced-motion: reduce) {
+  .tab.is-live:not(.is-active),
+  .tab-live-dot {
+    animation: none;
+  }
 }
 
 /* ---------- Layout ---------- */
@@ -1466,23 +1536,18 @@ a {
     padding-right: max(1.25rem, env(safe-area-inset-right));
     gap: 0.6rem;
   }
-  .masthead-tools {
+  /* The tab row takes the whole second line; centring it there would leave it
+     floating away from the brand above, so it starts at the left edge and the
+     pill's own padding is pulled back to line the label up with the wordmark. */
+  .tabs {
     order: 1;
     width: 100%;
-    gap: 0.85rem;
-    justify-content: space-between;
-  }
-  .tabs {
     margin-left: -0.35rem;
   }
-  /* space-between would strand the social icons in the middle of the row;
-     they belong with the theme toggle on the right. */
-  .masthead-tools .socials {
-    margin-left: auto;
-  }
   /* Shares the top row with the brand once the tabs drop below. */
-  .countdown {
+  .masthead-tools {
     margin-left: auto;
+    gap: 0.85rem;
   }
   .feature {
     min-height: 340px;
@@ -1523,6 +1588,8 @@ a {
     right: 0;
     bottom: 0;
     z-index: 30;
+    /* Undoes the full-width second line it took at 700; left/right pin it now. */
+    width: auto;
     margin-left: 0;
     gap: 0.15rem;
     /* Nothing overflows now, so the hidden scrollbar has nothing to hide. */
@@ -1533,6 +1600,15 @@ a {
     background: var(--masthead-bg);
     backdrop-filter: saturate(140%) blur(12px);
     border-top: 1px solid var(--border);
+  }
+  /* The centring that holds the row in the middle of the masthead has to come
+     off once it's out of flow: an alignment other than stretch shrink-wraps an
+     absolutely positioned box and parks it between its offsets instead of
+     spanning them, which left the bar 246px wide with its labels overlapping.
+     Selector matched to the rule up top on purpose — a media query adds no
+     specificity, so a bare .tabs here would lose to it. */
+  .masthead-inner > .tabs {
+    justify-self: stretch;
   }
   .tab {
     flex: 1;
@@ -1583,9 +1659,6 @@ a {
     display: none;
   }
   .masthead-tools {
-    order: 0;
-    width: auto;
-    margin-left: auto;
     gap: 0.6rem;
   }
   /* Even with the tabs gone the row doesn't fit: the brand and the 149px
