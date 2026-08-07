@@ -529,6 +529,12 @@ a {
   .skeleton::after {
     animation: none;
   }
+  /* `both` means dropping the animation would strand the element at its first
+     frame, so this has to name the property rather than lean on the `*` rule
+     below, which only covers transitions. */
+  .settle-in {
+    animation: none;
+  }
   * {
     transition-duration: 0.01ms !important;
   }
@@ -1046,6 +1052,55 @@ a {
 .skeleton-line.long { width: 90%; }
 .skeleton-line.short { width: 45%; }
 
+/* Placeholders that stand in for a specific piece of text.
+   `.skeleton-line` is for filling a card with generic bars; these instead each
+   match one real element, so the strips above the schedule can hold their
+   final size while the standings and odds requests are still out. Heights are
+   the line box of the text they replace — get those wrong and the placeholder
+   reintroduces the shift it exists to prevent. */
+.ph {
+  display: block;
+  border-radius: 4px;
+}
+
+.ph-division-logo { width: 24px; height: 24px; border-radius: 50%; }
+/* .division-title, 0.9rem at the default line-height. */
+.ph-division-title { width: 6.5rem; height: 1.08rem; }
+.ph-division-season { width: 3.25rem; height: 0.86rem; }
+.ph-division-abbr { width: 1.9rem; height: 1.02rem; }
+/* .division-record sets line-height: 1, so this is just the font size. */
+.ph-division-record { width: 2.5rem; height: 1.05rem; }
+.ph-division-streak { width: 1.4rem; height: 0.82rem; }
+
+.ph-odds-title { width: 3.75rem; height: 0.92rem; }
+/* The label carries a 3px gap to the value it sits above. */
+.ph-odds-label { width: 3.5rem; height: 0.68rem; margin-bottom: 3px; }
+.ph-odds-value { width: 2.75rem; height: 1.265rem; }
+.ph-odds-note { width: min(22rem, 100%); height: 0.81rem; }
+
+/* Sized to "8-9 · 1st in NFC South", the shape the badge settles into once the
+   standings land. It's the widest thing that goes here, so the rule beside it
+   shortens rather than the badge shoving anything. */
+.ph-badge { width: 7.1rem; height: 1.14rem; }
+/* Both chip placeholders are sized so the chip around them comes out the height
+   it will be with real text in it. That only shows up below 560px, where the
+   odds chip wraps to a second line and any error is multiplied by every row. */
+.ph-game-odds { width: 4.5rem; height: 0.81rem; }
+/* The chip's min-width sets the width; this just fills it. */
+.ph-game-record { width: 1.5rem; height: 0.78rem; margin: 0 auto; }
+
+/* The reveal. Late-arriving data fades and settles the last few pixels into
+   place instead of appearing between one frame and the next, which is what
+   made a slow odds request read as a flicker rather than as loading. */
+.settle-in {
+  animation: settle-in 260ms ease-out both;
+}
+
+@keyframes settle-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: none; }
+}
+
 /* ---------- Schedule ---------- */
 .game-list {
   list-style: none;
@@ -1136,6 +1191,11 @@ a {
    first, since it's the part that can run long. */
 .game-record {
   flex: none;
+  /* Wide enough for "11-6" without growing for it, so a row of 8-9s and a row
+     of 10-7s put the odds chip after them in the same place — and so the
+     placeholder held while standings load is the size the record arrives at. */
+  min-width: 2.51rem;
+  text-align: center;
   padding: 0.05rem 0.4rem;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -2496,6 +2556,16 @@ a {
   font-variant-numeric: tabular-nums;
   color: var(--silver-dim);
   cursor: default;
+}
+
+/* The chip's own placeholder. It keeps the row's geometry — which below 560px
+   means keeping the second line the chip wraps onto — but sits back far enough
+   that an empty row doesn't read as a line we're claiming to have. */
+.game-odds-pending,
+.game-record-pending {
+  border-color: transparent;
+  background: transparent;
+  opacity: 0.55;
 }
 
 /* The number a fan actually looks for; the rest of the chip is context. */

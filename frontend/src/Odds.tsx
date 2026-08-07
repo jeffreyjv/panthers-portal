@@ -12,6 +12,32 @@ function Cell({ label, value }: { label: string; value: string | null }) {
   );
 }
 
+/** The futures strip's placeholder, held while the odds request is in flight.
+ *
+ * Same trick as the division strip: real classes, blank contents, so the strip
+ * has already claimed its space by the time the prices arrive.
+ */
+export function SeasonOddsSkeleton() {
+  return (
+    <section className="odds" aria-hidden="true">
+      <span className="odds-group-title">
+        <span className="skeleton ph ph-odds-title" />
+      </span>
+      <div className="odds-cells">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div className="odds-cell" key={i}>
+            <span className="skeleton ph ph-odds-label" />
+            <span className="skeleton ph ph-odds-value" />
+          </div>
+        ))}
+      </div>
+      <p className="odds-note">
+        <span className="skeleton ph ph-odds-note" />
+      </p>
+    </section>
+  );
+}
+
 /** The season futures strip above the schedule.
  *
  * Per-game lines live on the rows themselves; this covers only the prices that

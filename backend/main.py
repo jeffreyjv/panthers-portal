@@ -372,17 +372,40 @@ def get_live_game() -> Optional[LiveGame]:
     return _live_cache.get(fetch_live_game)
 
 
+def _regular_season_started(season: int) -> Optional[bool]:
+    """Whether a regular-season game has actually been played yet.
+
+    The standings can't answer this on their own: through August ESPN folds
+    preseason results into the regular-season table, so Carolina shows 1-0
+    weeks before Week 1 kicks off. The schedule is fetched for seasontype 2
+    only, so any game past `scheduled` there is a real regular-season game.
+
+    None when the schedule is unavailable, leaving the caller to fall back.
+    """
+    try:
+        games = get_schedule(season)
+    except RuntimeError:
+        logger.exception("Schedule unavailable; can't date the start of %d", season)
+        return None
+    return any(game.status != "scheduled" for game in games)
+
+
 def get_standings(season: int) -> Standings:
     """The division table, falling back to last season before kickoff.
 
-    ESPN publishes the coming season's standings months early with every team
-    at 0-0; showing that is worse than showing the season that just finished,
-    so an all-zero table is replaced by the previous one and flagged final.
+    ESPN publishes the coming season's standings months early — first at 0-0,
+    then seeded with preseason results — and showing either is worse than
+    showing the season that just finished. So the table is only used once the
+    schedule confirms the regular season is under way.
     """
 
     def load() -> Standings:
         standings = fetch_standings(season)
-        if not standings_are_empty(standings):
+        started = _regular_season_started(season)
+        if started is None:
+            # No schedule to check against: the all-zero test is all we have.
+            started = not standings_are_empty(standings)
+        if started:
             # A past season's numbers are done changing; the current one's aren't.
             standings.final = season < current_season()
             return standings

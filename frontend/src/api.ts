@@ -94,6 +94,9 @@ export function americanOdds(value: number | null): string | null {
 export interface Game {
   week: number;
   bye: boolean;
+  // ESPN's event id, which the odds endpoints are keyed on. Null for byes, and
+  // the backend prices exactly the games that have one.
+  event_id: string | null;
   kickoff: string | null;
   opponent: string | null;
   opponent_abbr: string | null;

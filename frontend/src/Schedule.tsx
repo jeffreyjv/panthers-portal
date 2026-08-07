@@ -16,11 +16,19 @@ import {
   peekStandings,
 } from "./api";
 import { ClawMark } from "./ClawMark";
-import { DivisionStrip } from "./DivisionStrip";
+import { DivisionStrip, DivisionStripSkeleton } from "./DivisionStrip";
 import { Injuries } from "./Injuries";
-import { SeasonOdds } from "./Odds";
+import { SeasonOdds, SeasonOddsSkeleton } from "./Odds";
 
 type Status = "loading" | "error" | "ready";
+
+/** State of one of the two enrichments hanging off the schedule.
+ *
+ * "absent" is the resting state for both a failed request and a request that
+ * succeeded with nothing to show: either way the placeholder comes down and
+ * the tab renders the way it did before enrichments existed.
+ */
+type Enrichment = "loading" | "ready" | "absent";
 
 function record(games: Game[]): string | null {
   const finals = games.filter((g) => g.outcome);
@@ -50,14 +58,30 @@ function GameOdds({ line }: { line: GameLine }) {
   );
 }
 
+/** Whether this row is still expecting a line.
+ *
+ * Mirrors the backend's own filter: it prices every game that isn't a bye,
+ * carries an event id, and hasn't finished. Knowing that up front lets the row
+ * hold the chip's space instead of growing a line's worth of height when the
+ * odds land — which on a phone, where the chip wraps to its own line, is the
+ * shift you actually notice.
+ */
+function expectsLine(game: Game): boolean {
+  return !game.bye && Boolean(game.event_id) && game.status !== "final";
+}
+
 function GameRow({
   game,
   standings,
   line,
+  oddsPending,
+  standingsPending,
 }: {
   game: Game;
   standings: Standings | null;
   line: GameLine | undefined;
+  oddsPending: boolean;
+  standingsPending: boolean;
 }) {
   if (game.bye) {
     return (
@@ -94,12 +118,24 @@ function GameRow({
           {game.home ? "vs" : "at"}
         </span>
         <span className="game-opponent">{game.opponent}</span>
-        {opponent && (
+        {opponent ? (
           <span className="game-record" title={`${opponent.name} ${opponent.record}`}>
             {opponent.record}
           </span>
-        )}
-        {line && <GameOdds line={line} />}
+        ) : standingsPending && !game.bye && abbr ? (
+          // Same reasoning as the odds chip: this one sits mid-row, so without
+          // a placeholder everything to its right slides over when it lands.
+          <span className="game-record game-record-pending" aria-hidden="true">
+            <span className="skeleton ph ph-game-record" />
+          </span>
+        ) : null}
+        {line ? (
+          <GameOdds line={line} />
+        ) : oddsPending && expectsLine(game) ? (
+          <span className="game-odds game-odds-pending" aria-hidden="true">
+            <span className="skeleton ph ph-game-odds" />
+          </span>
+        ) : null}
       </div>
       {game.outcome ? (
         <span className={`game-result outcome-${game.outcome.toLowerCase()}`}>
@@ -150,12 +186,27 @@ function SkeletonRow() {
 
 export function Schedule() {
   const preloaded = peekSchedule();
+  const preloadedStandings = peekStandings();
+  const preloadedOdds = peekOdds();
+
   const [games, setGames] = useState<Game[]>(preloaded ?? []);
   const [status, setStatus] = useState<Status>(preloaded ? "ready" : "loading");
   const [standings, setStandings] = useState<Standings | null>(
-    peekStandings() ?? null,
+    preloadedStandings ?? null,
   );
-  const [odds, setOdds] = useState<Odds | null>(peekOdds() ?? null);
+  const [odds, setOdds] = useState<Odds | null>(preloadedOdds ?? null);
+  const [standingsState, setStandingsState] = useState<Enrichment>(
+    preloadedStandings ? "ready" : "loading",
+  );
+  const [oddsState, setOddsState] = useState<Enrichment>(
+    preloadedOdds ? "ready" : "loading",
+  );
+
+  // Whether this mount is the one that has to wait. On a return visit the
+  // caches answer instantly, and fading in data that was already on screen a
+  // moment ago is its own kind of glitch — so the animation is first-load only.
+  const [firstLoad] = useState(() => !preloadedStandings || !preloadedOdds);
+  const settle = firstLoad ? " settle-in" : "";
 
   useEffect(() => {
     let active = true;
@@ -174,17 +225,25 @@ export function Schedule() {
     // is swallowed, leaving the tab exactly as it was before they existed.
     fetchStandings()
       .then((data) => {
-        if (active) setStandings(data);
+        if (!active) return;
+        setStandings(data);
+        setStandingsState(data.division.length > 0 ? "ready" : "absent");
       })
-      .catch(() => {});
+      .catch(() => {
+        if (active) setStandingsState("absent");
+      });
 
     // Odds are enrichment on the same terms: a failure leaves the rows bare
     // rather than putting an error in front of the schedule.
     fetchOdds()
       .then((data) => {
-        if (active) setOdds(data);
+        if (!active) return;
+        setOdds(data);
+        setOddsState(data.futures ? "ready" : "absent");
       })
-      .catch(() => {});
+      .catch(() => {
+        if (active) setOddsState("absent");
+      });
 
     return () => {
       active = false;
@@ -211,16 +270,41 @@ export function Schedule() {
     <>
       <div className="section-head">
         <h2 className="section-title">Schedule</h2>
-        {summary && (
-          <span className="section-badge">
+        {summary ? (
+          <span className={`section-badge${settle}`}>
             {summary}
             {rank && <small> · {rank} in NFC South</small>}
           </span>
+        ) : (
+          // Pre-kickoff the record comes from the standings, so the badge is
+          // as late as they are. It holds its own width rather than elbowing
+          // the rule aside once it arrives.
+          standingsState === "loading" && (
+            <span className="section-badge" aria-hidden="true">
+              <span className="skeleton ph ph-badge" />
+            </span>
+          )
         )}
         <span className="section-rule" />
       </div>
-      {standings && <DivisionStrip standings={standings} />}
-      {odds?.futures && <SeasonOdds futures={odds.futures} />}
+      {standingsState === "loading" ? (
+        <DivisionStripSkeleton />
+      ) : (
+        standings && (
+          <div className={settle.trim()}>
+            <DivisionStrip standings={standings} />
+          </div>
+        )
+      )}
+      {oddsState === "loading" ? (
+        <SeasonOddsSkeleton />
+      ) : (
+        odds?.futures && (
+          <div className={settle.trim()}>
+            <SeasonOdds futures={odds.futures} />
+          </div>
+        )
+      )}
       <ul className="game-list">
         {status === "loading"
           ? Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
@@ -230,6 +314,8 @@ export function Schedule() {
                 game={game}
                 standings={standings}
                 line={odds?.lines[game.week]}
+                oddsPending={oddsState === "loading"}
+                standingsPending={standingsState === "loading"}
               />
             ))}
       </ul>
