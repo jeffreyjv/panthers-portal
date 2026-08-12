@@ -1,6 +1,6 @@
 # Panthers Portal
 
-**Live: https://jeffreyvincent.vercel.app/**
+**Live: https://panthers-portal.onrender.com/**
 
 A barebones Carolina Panthers news web app. FastAPI backend that merges the
 official [Panthers RSS feed](https://www.panthers.com/rss/news) with ESPN's
