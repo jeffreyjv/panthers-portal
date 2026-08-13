@@ -3649,3 +3649,165 @@ a {
     gap: 0.45rem;
   }
 }
+
+/* ---------- Score toasts ---------- */
+/* Scores as they land, on whichever tab you're on. Fixed to the bottom-right on
+   a desktop, where nothing else lives; pinned across the bottom on a phone,
+   which is both the reachable edge and the only place a 320px card fits without
+   covering the content it's reporting on.
+
+   z-index 40 clears the masthead (20) and the mobile tab drawer (30): a toast
+   that slid under the sticky header would be announcing a touchdown to nobody. */
+.toasts {
+  position: fixed;
+  right: max(1.25rem, env(safe-area-inset-right));
+  bottom: max(1.25rem, env(safe-area-inset-bottom));
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(23rem, calc(100vw - 2.5rem));
+  /* The stack is only ever a frame around the cards — clicks in the gaps
+     between them belong to the page underneath. */
+  pointer-events: none;
+}
+
+.toast {
+  position: relative;
+  pointer-events: auto;
+  padding: 0.8rem 2.2rem 0.85rem 0.9rem;
+  background: var(--masthead-bg);
+  backdrop-filter: saturate(140%) blur(12px);
+  border: 1px solid var(--border);
+  /* The scoring team's colour, as a spine down the leading edge — the same
+     is-car/is-opp pairing the charts and the scoring summary use. */
+  border-left: 3px solid var(--viz-opp);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-feature);
+  animation: toast-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.toast.is-car {
+  border-left-color: var(--viz-car);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px) scale(0.98);
+  }
+}
+
+/* Same entrance from the edge the stack is docked to once it moves to the
+   bottom of a phone. */
+@keyframes toast-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
+.toast-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toast-logo {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.toast-headline {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1.15;
+  color: var(--ink);
+}
+
+.toast-headline small {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--silver-dim);
+}
+
+.toast-score {
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800;
+  font-size: 1.25rem;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Two lines of play-by-play. ESPN's text runs long, and the toast is a nudge
+   toward the Live tab rather than a replacement for it. */
+.toast-text {
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--silver);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.toast-close {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--silver-dim);
+  cursor: pointer;
+}
+
+.toast-close svg {
+  width: 14px;
+  height: 14px;
+}
+
+@media (hover: hover) {
+  .toast-close:hover {
+    background: var(--panel-2);
+    color: var(--ink);
+  }
+}
+
+@media (max-width: 560px) {
+  /* Full width across the bottom, and clear of the tab bar that lives there on
+     a phone — the same 4.2rem the footer reserves for it. Covering the nav to
+     report a field goal would be a bad trade. */
+  .toasts {
+    left: max(0.75rem, env(safe-area-inset-left));
+    right: max(0.75rem, env(safe-area-inset-right));
+    bottom: calc(4.4rem + env(safe-area-inset-bottom));
+    width: auto;
+  }
+
+  .toast {
+    animation-name: toast-in-up;
+  }
+}

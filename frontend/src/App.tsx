@@ -5,6 +5,7 @@ import { Live } from "./Live";
 import { useLive } from "./liveStore";
 import { News } from "./News";
 import { Schedule } from "./Schedule";
+import { ScoreToasts } from "./ScoreToasts";
 import { SocialLinks } from "./SocialLinks";
 import { Talk } from "./Talk";
 import { Team } from "./Team";
@@ -183,6 +184,8 @@ export default function App() {
         </span>
         <SocialLinks label="Panthers on social media (footer)" />
       </footer>
+
+      <ScoreToasts />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { LiveGame, fetchLive, peekLive } from "./api";
+import { announceScores } from "./toastStore";
 
 export type LiveStatus = "loading" | "error" | "ready";
 
@@ -66,6 +67,9 @@ async function load() {
   try {
     const game = await fetchLive();
     loadedAt = Date.now();
+    // Before the state change, so a toast and the board it describes land in
+    // the same render rather than a frame apart.
+    announceScores(game);
     set({ game, status: "ready", refreshing: false });
   } catch {
     set({
