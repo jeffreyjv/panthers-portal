@@ -18,6 +18,7 @@ import {
 import { ClawMark } from "./ClawMark";
 import { DivisionStrip, DivisionStripSkeleton } from "./DivisionStrip";
 import { SeasonOdds, SeasonOddsSkeleton } from "./Odds";
+import { navigate, pathOf } from "./router";
 
 type Status = "loading" | "error" | "ready";
 
@@ -96,9 +97,11 @@ function GameRow({
   }
 
   // Opponent's record, when we know it. Missing standings just means the row
-  // renders the way it always did.
+  // renders the way it always did — and before Week 1 there is no record worth
+  // printing, so seventeen rows of "0-0" are dropped rather than shown.
   const abbr = game.opponent_abbr?.toUpperCase();
-  const opponent = abbr ? standings?.league[abbr] : undefined;
+  const opponent =
+    abbr && !standings?.preseason ? standings?.league[abbr] : undefined;
   const divisional = Boolean(
     abbr && standings?.division.some((t) => t.abbreviation.toUpperCase() === abbr),
   );
@@ -153,6 +156,28 @@ function GameRow({
   );
 
   const className = `game${divisional ? " is-divisional" : ""}`;
+
+  // A game that's been played has a recap of its own — the same charts the Live
+  // tab draws — so it leads there rather than off to ESPN. Everything else is
+  // still an outbound link, since there's nothing to show yet.
+  if (game.event_id && game.status !== "scheduled") {
+    const href = pathOf({ name: "game", eventId: game.event_id });
+    return (
+      <li>
+        <a
+          className={`${className} is-recap`}
+          href={href}
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            e.preventDefault();
+            navigate({ name: "game", eventId: game.event_id! });
+          }}
+        >
+          {body}
+        </a>
+      </li>
+    );
+  }
 
   if (game.url) {
     return (
@@ -263,7 +288,10 @@ export function Schedule() {
   // standings carry — which the strip labels with the season it belongs to.
   const panthers = standings?.division.find((t) => t.panthers);
   const summary = record(games) ?? panthers?.record ?? null;
-  const rank = standings ? divisionRank(standings) : null;
+  // A preseason table is alphabetical and every team is 0-0, so a placing
+  // would be an accident of the alphabet rather than a standing.
+  const rank =
+    standings && !standings.preseason ? divisionRank(standings) : null;
 
   return (
     <>

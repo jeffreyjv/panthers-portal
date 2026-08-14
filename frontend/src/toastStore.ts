@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { LiveGame, ScoringPlay, periodLabel } from "./api";
+import { notifyScore } from "./notify";
 
 /** A score that landed while the page was open. */
 export interface ScoreToast {
@@ -53,6 +54,8 @@ export function dismissToast(id: string) {
 function push(toast: ScoreToast) {
   toasts = [...toasts, toast].slice(-MAX_VISIBLE);
   emit();
+  // Same score, said to the OS instead, when nobody is looking at the tab.
+  notifyScore(toast);
   window.setTimeout(() => dismissToast(toast.id), DISMISS_AFTER);
 }
 

@@ -7,16 +7,30 @@ import {
   sourceLabel,
 } from "./api";
 import { ClawMark } from "./ClawMark";
-import { Reader } from "./Reader";
+import { Reader, ReaderSkeleton } from "./Reader";
+import { navigate, pathOf, useRoute } from "./router";
 
 type Status = "loading" | "error" | "ready";
-type Open = (article: Article) => void;
 
-/** Plain clicks open the in-app reader; modified clicks stay ordinary links. */
-function openInReader(e: MouseEvent, article: Article, onOpen: Open) {
+/** Every card is a real link to the story's own URL.
+ *
+ * Plain clicks are routed in-app so nothing reloads; modified clicks are left
+ * alone, which now opens the reader in a new tab rather than jumping straight
+ * to the source. The source is still one link away at the foot of the reader,
+ * and in exchange "copy link address" yields something shareable.
+ */
+function openInReader(e: MouseEvent, article: Article) {
   if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
   e.preventDefault();
-  onOpen(article);
+  navigate({ name: "article", id: article.id });
+}
+
+const articlePath = (article: Article) =>
+  pathOf({ name: "article", id: article.id });
+
+function backToNews(e: MouseEvent) {
+  e.preventDefault();
+  navigate({ name: "news" });
 }
 
 function Thumb({ src, className }: { src: string | null; className: string }) {
@@ -45,14 +59,12 @@ function Byline({ article }: { article: Article }) {
   );
 }
 
-function FeatureCard({ article, onOpen }: { article: Article; onOpen: Open }) {
+function FeatureCard({ article }: { article: Article }) {
   return (
     <a
       className="feature"
-      href={article.url}
-      target="_blank"
-      rel="noreferrer"
-      onClick={(e) => openInReader(e, article, onOpen)}
+      href={articlePath(article)}
+      onClick={(e) => openInReader(e, article)}
     >
       <Thumb src={article.image_url} className="feature-media" />
       <div className="feature-scrim" />
@@ -68,15 +80,13 @@ function FeatureCard({ article, onOpen }: { article: Article; onOpen: Open }) {
   );
 }
 
-function StoryCard({ article, onOpen }: { article: Article; onOpen: Open }) {
+function StoryCard({ article }: { article: Article }) {
   return (
     <li>
       <a
         className="card"
-        href={article.url}
-        target="_blank"
-        rel="noreferrer"
-        onClick={(e) => openInReader(e, article, onOpen)}
+        href={articlePath(article)}
+        onClick={(e) => openInReader(e, article)}
       >
         <div className="card-media-wrap">
           <Thumb src={article.image_url} className="card-media" />
@@ -110,9 +120,9 @@ function SkeletonCard() {
 
 export function News() {
   const preloaded = peekArticles();
+  const route = useRoute();
   const [articles, setArticles] = useState<Article[]>(preloaded ?? []);
   const [status, setStatus] = useState<Status>(preloaded ? "ready" : "loading");
-  const [reading, setReading] = useState<Article | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -131,8 +141,26 @@ export function News() {
     };
   }, []);
 
-  if (reading) {
-    return <Reader article={reading} onBack={() => setReading(null)} />;
+  // The reader needs the card's metadata — title, image, byline — and the feed
+  // is where that lives, so a link opened cold waits on the same fetch the
+  // feed does rather than asking the backend for it a second way.
+  if (route.name === "article") {
+    const article = articles.find((a) => a.id === route.id);
+    if (article) return <Reader article={article} />;
+    if (status === "loading") return <ReaderSkeleton />;
+    return (
+      <div className="notice">
+        <ClawMark className="notice-claw" />
+        <h2>Story not found</h2>
+        <p>
+          This one has rolled off the feed.{" "}
+          <a href="/" onClick={backToNews}>
+            Back to news
+          </a>
+          .
+        </p>
+      </div>
+    );
   }
 
   const [feature, ...rest] = articles;
@@ -173,7 +201,7 @@ export function News() {
 
       {status === "ready" && feature && (
         <>
-          <FeatureCard article={feature} onOpen={setReading} />
+          <FeatureCard article={feature} />
           {rest.length > 0 && (
             <>
               <div className="section-head">
@@ -182,7 +210,7 @@ export function News() {
               </div>
               <ul className="grid">
                 {rest.map((a) => (
-                  <StoryCard key={a.id} article={a} onOpen={setReading} />
+                  <StoryCard key={a.id} article={a} />
                 ))}
               </ul>
             </>

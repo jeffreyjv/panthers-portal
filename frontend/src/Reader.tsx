@@ -6,16 +6,32 @@ import {
   relativeTime,
 } from "./api";
 import { ClawMark } from "./ClawMark";
+import { back } from "./router";
 
 type Status = "loading" | "error" | "ready";
 
-export function Reader({
-  article,
-  onBack,
-}: {
-  article: Article;
-  onBack: () => void;
-}) {
+/** Held while a linked-to story waits on the feed that describes it.
+ *
+ * A cold "/article/…" has no title or hero to show until the feed lands, so
+ * this stands in for the whole page rather than just the body — otherwise the
+ * back link would sit alone above an empty screen.
+ */
+export function ReaderSkeleton() {
+  return (
+    <article className="reader" aria-hidden="true">
+      <div className="skeleton skeleton-media reader-hero" />
+      <div className="skeleton skeleton-line long" />
+      <div className="reader-body">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="skeleton skeleton-line long" />
+        ))}
+      </div>
+    </article>
+  );
+}
+
+export function Reader({ article }: { article: Article }) {
+  const onBack = () => back({ name: "news" });
   const preloaded = peekArticleContent(article.id);
   const [paragraphs, setParagraphs] = useState<string[]>(
     preloaded?.paragraphs ?? [],
@@ -55,11 +71,11 @@ export function Reader({
   // Escape returns to the feed, matching the back button.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onBack();
+      if (e.key === "Escape") back({ name: "news" });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onBack]);
+  }, []);
 
   return (
     <article className="reader">

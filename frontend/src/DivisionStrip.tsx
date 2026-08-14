@@ -41,7 +41,11 @@ export function DivisionStrip({ standings }: { standings: Standings }) {
       <div className="division-head">
         <span className="division-title">NFC South</span>
         <span className="division-season">
-          {standings.final ? `${standings.season} final` : standings.season}
+          {standings.final
+            ? `${standings.season} final`
+            : standings.preseason
+              ? `${standings.season} · preseason`
+              : standings.season}
         </span>
       </div>
       <ol className="division-teams">

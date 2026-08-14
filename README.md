@@ -33,6 +33,8 @@ uvicorn main:app --reload --port 8000
 - `GET /api/schedule` — the season calendar, bye weeks included.
 - `GET /api/roster` — the roster, grouped and flagged with depth-chart starters.
 - `GET /api/standings` — the NFC South table plus every team's record.
+- `GET /api/live` — the game in progress, or the next one, or the last one played.
+- `GET /api/game/{event_id}` — one game by ESPN event id, for a recap.
 - `GET /api/health` — status plus cache age in seconds, and Talk's database state.
 
 Talk (see [Talk](#talk) below). Reading needs no account; every write does:
@@ -103,9 +105,13 @@ are already applied, so the order is never recomputed — alongside `league`, a
 record for all 32 teams keyed by abbreviation. One request covers both, which
 is what lets the schedule show each opponent's record without a second call.
 
-ESPN publishes the coming season's table months early with every team at 0-0.
-An all-zero table is therefore replaced by the previous season's, flagged
-`final` so the UI can label it (e.g. "2025 final") rather than showing zeros.
+ESPN publishes the coming season's table months early and then seeds it with
+preseason results, so Carolina can show 1-0 weeks before Week 1. Until the
+schedule confirms a regular-season game has actually been played, every line is
+reset to 0-0 and the table is flagged `preseason`, which is what the strip
+labels ("2026 · preseason") and what tells the schedule to drop the division
+rank and the per-row opponent records — none of which mean anything yet. A
+completed season is flagged `final` instead.
 
 The Schedule tab treats standings as enrichment: if the request fails, the
 division strip and the opponent records disappear and the schedule renders
@@ -170,6 +176,41 @@ npm run dev
 
 Open http://localhost:5173. The Vite dev server proxies `/api` to the backend
 on port 8000, so start the backend first.
+
+### URLs
+
+`frontend/src/router.ts` is about a hundred lines over `history.pushState` and
+`popstate` — the app has six screens and no nested layouts, which doesn't
+justify a router dependency, and the two shared stores are hand-rolled the same
+way. Paths are `/`, `/live`, `/schedule`, `/team`, `/talk`, `/article/{id}` and
+`/game/{event_id}`. The older `?tab=` form still works and is rewritten to its
+path on load, which is how `devices.html` drives three frames at once; the
+`?auth=` marker Google's callback returns with is left in the query for
+`auth.tsx` to read and strip.
+
+Every path is answered with `index.html` by the SPA catch-all in
+`backend/main.py`, so a link to a game survives a hard reload.
+
+### Recaps
+
+`/game/{event_id}` renders through the same `Live.tsx` and `GameCharts.tsx` as
+the live tab, because a finished game is a live one that stopped changing. The
+backend adapter is shared too — `_summary_to_live_game` in `backend/sources.py`
+— so the win probability, drives and scoring summary written for kickoff work
+on a game from October. Finished schedule rows link there instead of to ESPN.
+
+### Installing it
+
+`public/manifest.webmanifest` plus `public/sw.js`, registered from `main.tsx`
+in production builds only — in dev the worker would sit in front of Vite's
+module graph. The worker caches the app shell and the hashed `/assets` bundles
+and **nothing else**: `/api` always goes to the network, because a cached score
+looks exactly like a real one.
+
+Score notifications (`notify.ts`) are not web push. There's no subscription and
+no server; while the tab is open but not looked at, the toast that was going to
+fire is also raised with the `Notification` API. Permission is only ever asked
+for from the button on the Live tab.
 
 **Testing sign-in is the exception**: use http://localhost:8000 (run
 `npm run build` first so FastAPI has a frontend to serve). The OAuth redirect

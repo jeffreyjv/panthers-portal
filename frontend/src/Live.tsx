@@ -1,10 +1,13 @@
+import { useEffect, useState } from "react";
 import {
   GameLeader,
   LiveGame,
   LiveTeam,
   ScoringPlay,
+  fetchGame,
   gameDate,
   gameTime,
+  peekGame,
   periodLabel,
   relativeTime,
 } from "./api";
@@ -15,7 +18,9 @@ import {
   StatComparison,
   WinProbabilityChart,
 } from "./GameCharts";
-import { useLive } from "./liveStore";
+import { LiveSnapshot, useLive } from "./liveStore";
+import { toggleNotifications, useNotifyState } from "./notify";
+import { back } from "./router";
 
 /** The clock, phrased the way the state calls for. */
 function StatusBadge({ game }: { game: LiveGame }) {
@@ -301,14 +306,125 @@ function Skeleton() {
   );
 }
 
-export function Live() {
-  const { game, status, refreshing } = useLive();
+/** One named game, fetched once.
+ *
+ * Deliberately not the live store: that store is a poll loop around "whichever
+ * game matters now", and a recap is the opposite — a game that finished, whose
+ * page should settle and stay put. Passing no id keeps it idle, so the Live tab
+ * pays nothing for this.
+ */
+function useRecap(eventId: string | undefined): LiveSnapshot {
+  const [snapshot, setSnapshot] = useState<LiveSnapshot>({
+    game: null,
+    status: "loading",
+    refreshing: false,
+  });
+
+  useEffect(() => {
+    if (!eventId) return;
+
+    // A game already read this session repaints without a skeleton, the same
+    // way the other tabs come back from `peek`.
+    const preloaded = peekGame(eventId);
+    if (preloaded) {
+      setSnapshot({ game: preloaded, status: "ready", refreshing: false });
+      return;
+    }
+
+    let active = true;
+    setSnapshot({ game: null, status: "loading", refreshing: false });
+    fetchGame(eventId)
+      .then((game) => {
+        if (active) setSnapshot({ game, status: "ready", refreshing: false });
+      })
+      .catch(() => {
+        if (active) {
+          setSnapshot({ game: null, status: "error", refreshing: false });
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [eventId]);
+
+  return snapshot;
+}
+
+/** The opt-in for score notifications.
+ *
+ * Only offered on a game that hasn't finished — there is nothing left to
+ * announce about one that has — and never shown at all where the browser has
+ * no notifications or the user has already turned the site down at the
+ * browser level, since neither is something a button here can fix.
+ */
+function NotifyToggle() {
+  const state = useNotifyState();
+  if (state === "unsupported" || state === "denied") return null;
+
+  const on = state === "granted";
+  return (
+    <button
+      type="button"
+      className={`notify-toggle${on ? " is-on" : ""}`}
+      onClick={toggleNotifications}
+      aria-pressed={on}
+      title={
+        on
+          ? "Scores are announced when this tab is in the background"
+          : "Get a notification when someone scores"
+      }
+    >
+      <BellIcon muted={!on} />
+      {on ? "Score alerts on" : "Alert me on scores"}
+    </button>
+  );
+}
+
+function BellIcon({ muted }: { muted: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M18 8.5a6 6 0 1 0-12 0c0 5-2 6.5-2 6.5h16s-2-1.5-2-6.5z" />
+      <path d="M13.7 19a2 2 0 0 1-3.4 0" />
+      {muted && <path d="M3.5 3.5l17 17" />}
+    </svg>
+  );
+}
+
+function BackToSchedule() {
+  return (
+    <button
+      type="button"
+      className="back-link"
+      onClick={() => back({ name: "schedule" })}
+    >
+      <span aria-hidden="true">←</span> Back to schedule
+    </button>
+  );
+}
+
+export function Live({ eventId }: { eventId?: string }) {
+  const live = useLive();
+  // A link to the game that's on right now is just the Live tab with a URL, so
+  // it's handed back to the shared poll rather than frozen at one snapshot.
+  const current = Boolean(eventId && live.game?.event_id === eventId);
+  const recap = useRecap(current ? undefined : eventId);
+  const { game, status, refreshing } = !eventId || current ? live : recap;
 
   if (status === "loading") {
     return (
       <>
+        {eventId && <BackToSchedule />}
         <div className="section-head">
-          <h2 className="section-title">Live</h2>
+          <h2 className="section-title">{eventId ? "Recap" : "Live"}</h2>
           <span className="section-rule" />
         </div>
         <Skeleton />
@@ -316,13 +432,20 @@ export function Live() {
     );
   }
 
-  if (status === "error") {
+  if (status === "error" || (eventId && !game)) {
     return (
-      <div className="notice">
-        <ClawMark className="notice-claw" />
-        <h2>Live data unavailable</h2>
-        <p>We couldn’t reach the scoreboard. Please try again shortly.</p>
-      </div>
+      <>
+        {eventId && <BackToSchedule />}
+        <div className="notice">
+          <ClawMark className="notice-claw" />
+          <h2>{eventId ? "Game unavailable" : "Live data unavailable"}</h2>
+          <p>
+            {eventId
+              ? "We couldn’t load this game. It may not be one of Carolina’s."
+              : "We couldn’t reach the scoreboard. Please try again shortly."}
+          </p>
+        </div>
+      </>
     );
   }
 
@@ -336,18 +459,34 @@ export function Live() {
     );
   }
 
-  const badge = [game.season_label, game.week ? `Week ${game.week}` : null]
+  // A recap can be years old, so it says which season it was; the live tab is
+  // always this one and doesn't need telling.
+  const badge = [
+    eventId ? game.season : null,
+    game.season_label,
+    game.week ? `Week ${game.week}` : null,
+  ]
     .filter(Boolean)
     .join(" · ");
 
   return (
     <div className={`live${refreshing ? " is-refreshing" : ""}`}>
+      {eventId && <BackToSchedule />}
       <div className="section-head">
         <h2 className="section-title">
-          {game.state === "in" ? "Live" : game.state === "post" ? "Last game" : "Next game"}
+          {game.state === "in"
+            ? "Live"
+            : eventId
+              ? "Recap"
+              : game.state === "post"
+                ? "Last game"
+                : "Next game"}
         </h2>
         {badge && <span className="section-badge">{badge}</span>}
         <span className="section-rule" />
+        {/* Only where there are still scores to come: the whole offer is
+            "we'll tell you", and a finished game has nothing left to tell. */}
+        {!eventId && game.state !== "post" && <NotifyToggle />}
       </div>
 
       {game.name && <p className="live-matchup">{game.name}</p>}
@@ -380,7 +519,9 @@ export function Live() {
 
       <p className="live-footnote">
         Data from ESPN{game.fetched_at ? ` · updated ${relativeTime(game.fetched_at)}` : ""}
-        {game.state === "in" ? " · refreshes automatically" : ""}
+        {game.state === "in" && (!eventId || current)
+          ? " · refreshes automatically"
+          : ""}
       </p>
     </div>
   );

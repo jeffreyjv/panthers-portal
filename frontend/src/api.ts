@@ -280,7 +280,9 @@ export interface TeamStanding {
 export interface Standings {
   season: number;
   final: boolean;
-  /** The NFC South, in standings order. */
+  /** True before Week 1, when every line has been reset to 0-0. */
+  preseason: boolean;
+  /** The NFC South, in standings order — alphabetical while `preseason`. */
   division: TeamStanding[];
   /** All 32 teams, keyed by abbreviation, for opponent lookups. */
   league: Record<string, TeamStanding>;
@@ -437,6 +439,26 @@ export const peekLive = (): LiveGame | null => _lastLive;
 export async function fetchLive(): Promise<LiveGame | null> {
   const game = await getJSON<LiveGame | null>("/api/live");
   _lastLive = game;
+  return game;
+}
+
+/** One named game, for the recap a schedule row links to.
+ *
+ * Only finals are kept: they can't change again, so a second visit is free.
+ * Anything still being played is left uncached and refetched, since the whole
+ * problem with `cached()` is that a score would freeze at whatever it was the
+ * first time the page was opened.
+ */
+const _games = new Map<string, LiveGame>();
+
+export const peekGame = (eventId: string): LiveGame | undefined =>
+  _games.get(eventId);
+
+export async function fetchGame(eventId: string): Promise<LiveGame> {
+  const game = await getJSON<LiveGame>(
+    `/api/game/${encodeURIComponent(eventId)}`,
+  );
+  if (game.state === "post") _games.set(eventId, game);
   return game;
 }
 

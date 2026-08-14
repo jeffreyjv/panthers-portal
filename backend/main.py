@@ -45,12 +45,14 @@ from models import (
     ReactionCreate,
     ReactionResult,
     Standings,
+    TeamStanding,
 )
 from sources import (
     current_season,
     fetch_article_body,
     fetch_espn_articles,
     fetch_futures,
+    fetch_game,
     fetch_game_odds,
     fetch_injuries,
     fetch_live_game,
@@ -98,6 +100,10 @@ LIVE_KICKOFF_WINDOW_SECONDS = int(os.getenv("LIVE_KICKOFF_WINDOW_SECONDS", "1800
 # A final box score is settled; ESPN still corrects stats for a while afterwards,
 # which is what this refetch is for rather than anything a viewer is waiting on.
 LIVE_FINAL_TTL_SECONDS = int(os.getenv("LIVE_FINAL_TTL_SECONDS", "900"))
+# A game reached by id is nearly always one that finished weeks ago, so the
+# recap route holds each one for a day and bounds how many it keeps.
+GAME_CACHE_MAX_ENTRIES = int(os.getenv("GAME_CACHE_MAX_ENTRIES", "60"))
+GAME_FINAL_TTL_SECONDS = int(os.getenv("GAME_FINAL_TTL_SECONDS", "86400"))
 # Published article bodies effectively never change.
 CONTENT_CACHE_TTL_SECONDS = int(os.getenv("CONTENT_CACHE_TTL_SECONDS", "86400"))
 CONTENT_CACHE_MAX_ENTRIES = int(os.getenv("CONTENT_CACHE_MAX_ENTRIES", "200"))
@@ -233,6 +239,26 @@ _live_cache = ReadThroughCache(
     LIVE_CACHE_TTL_SECONDS,
     "Live game data unavailable",
     ttl_of=_live_ttl,
+)
+
+
+
+def _game_ttl(game: LiveGame) -> int:
+    """How long a named game stays good for.
+
+    A final game is over: nothing about it will change again, so it's held for
+    a day. Anything else is deferred to the live rules, since a link to today's
+    game has to behave like the Live tab rather than freeze on first read.
+    """
+    return GAME_FINAL_TTL_SECONDS if game.state == "post" else _live_ttl(game)
+
+
+_game_cache = ReadThroughCache(
+    "game",
+    GAME_FINAL_TTL_SECONDS,
+    "Game data unavailable",
+    max_entries=GAME_CACHE_MAX_ENTRIES,
+    ttl_of=_game_ttl,
 )
 _content_cache = ReadThroughCache(
     "content",
@@ -390,13 +416,55 @@ def _regular_season_started(season: int) -> Optional[bool]:
     return any(game.status != "scheduled" for game in games)
 
 
-def get_standings(season: int) -> Standings:
-    """The division table, falling back to last season before kickoff.
+def _reset_standing(team: TeamStanding) -> TeamStanding:
+    """One line, wound back to the start of the season.
 
-    ESPN publishes the coming season's standings months early — first at 0-0,
-    then seeded with preseason results — and showing either is worse than
-    showing the season that just finished. So the table is only used once the
-    schedule confirms the regular season is under way.
+    Everything here is a consequence of games played, so before Week 1 none of
+    it exists — including the preseason results ESPN folds into the August
+    table, which is the whole reason this is done by hand rather than trusted.
+    """
+    return team.model_copy(
+        update={
+            "wins": 0,
+            "losses": 0,
+            "ties": 0,
+            "record": "0-0",
+            "win_pct": None,
+            "streak": None,
+            "points_for": None,
+            "points_against": None,
+            "division_record": None,
+            "playoff_seed": None,
+            "clinched": None,
+        }
+    )
+
+
+def _reset_standings(standings: Standings) -> Standings:
+    """The coming season's table with every record zeroed.
+
+    ESPN orders a division by its own tiebreakers, which mean nothing when
+    every team is 0-0 — and leaving last season's order in place reads as a
+    prediction. Alphabetical is the one order that claims nothing.
+    """
+    standings.division = sorted(
+        (_reset_standing(t) for t in standings.division), key=lambda t: t.name
+    )
+    standings.league = {
+        abbr: _reset_standing(team) for abbr, team in standings.league.items()
+    }
+    standings.final = False
+    standings.preseason = True
+    return standings
+
+
+def get_standings(season: int) -> Standings:
+    """The division table, zeroed out before kickoff.
+
+    ESPN publishes the coming season's standings months early and then seeds
+    them with preseason results, so Carolina can show 1-0 weeks before Week 1.
+    Until the schedule confirms a regular-season game has been played, the
+    table is reset to 0-0 rather than shown as ESPN sends it.
     """
 
     def load() -> Standings:
@@ -410,10 +478,8 @@ def get_standings(season: int) -> Standings:
             standings.final = season < current_season()
             return standings
 
-        logger.info("Season %d hasn't started; using %d standings", season, season - 1)
-        previous = fetch_standings(season - 1)
-        previous.final = True
-        return previous
+        logger.info("Season %d hasn't started; resetting the table to 0-0", season)
+        return _reset_standings(standings)
 
     return _standings_cache.get(load, key=season)
 
@@ -749,6 +815,28 @@ def live(response: Response) -> Optional[LiveGame]:
     return get_live_game()
 
 
+@app.get("/api/game/{event_id}", response_model=LiveGame)
+def game(event_id: str, response: Response) -> LiveGame:
+    """One game by ESPN event id — the same payload the Live tab renders.
+
+    This is what a finished schedule row links to: without it the charts only
+    get to exist for three hours a week.
+
+    `no-store` for the same reason as /api/live: a linked-to game can be one
+    that is still being played, and the id alone doesn't say which.
+    """
+    response.headers["Cache-Control"] = "no-store"
+    # ESPN event ids are numeric. Anything else can't name a game, so it's
+    # turned away here rather than sent upstream to find that out.
+    if not event_id.isdigit():
+        raise HTTPException(status_code=404, detail="Unknown game")
+
+    # An id that names some other team's game raises in `fetch_game` and comes
+    # back as the cache's 503, which is the same answer every other route gives
+    # for "can't show you this" and is what the tab already handles.
+    return _game_cache.get(lambda: fetch_game(event_id), key=event_id)
+
+
 @app.get("/api/health")
 def health() -> dict:
     return {
@@ -763,6 +851,7 @@ def health() -> dict:
         "cached_injuries": _injuries_cache.size(),
         "odds_cache_age_seconds": _odds_cache.age_seconds(current_season()),
         "live_cache_age_seconds": _live_cache.age_seconds(),
+        "cached_recaps": _game_cache.entry_count(),
         "cached_article_bodies": _content_cache.entry_count(),
         # Talk's schema came up at startup; `database` is checked live, so a
         # Neon instance that went away since boot shows here.

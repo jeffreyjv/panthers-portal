@@ -1243,6 +1243,34 @@ a {
 .outcome-l { color: #e5645f; }
 .outcome-t { color: var(--silver); }
 
+/* A played game leads to its own recap, so the row says so. The chevron rides
+   in the result's own column and is there from first paint, so it costs no
+   shift; it only leans in on hover, which is the whole signal. */
+.game.is-recap .game-result::after {
+  content: "›";
+  margin-left: 0.45rem;
+  font-weight: 600;
+  color: var(--silver-dim);
+  transition: transform 0.2s ease, color 0.2s ease;
+  display: inline-block;
+}
+
+@media (hover: hover) {
+  .game.is-recap:hover .game-result::after {
+    color: var(--blue-bright);
+    transform: translateX(2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game.is-recap .game-result::after {
+    transition: none;
+  }
+  .game.is-recap:hover .game-result::after {
+    transform: none;
+  }
+}
+
 .game-bye {
   background: var(--panel-2);
   border-style: dashed;
@@ -2516,6 +2544,69 @@ a {
   font-size: 0.85rem;
   letter-spacing: 0.02em;
   color: var(--silver-dim);
+}
+
+/* --- Score alerts opt-in ---
+   Sits past the section rule, at the end of the head, because it's an offer
+   rather than part of the heading. Quiet until it's on, when it takes the
+   brand blue — the same way the live dot does. */
+.notify-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  padding: 0.28rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--silver-dim);
+  font-family: "Barlow", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.notify-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.notify-toggle.is-on {
+  color: var(--blue-bright);
+  border-color: var(--blue);
+}
+
+@media (hover: hover) {
+  .notify-toggle:hover {
+    color: var(--ink);
+    border-color: var(--silver-dim);
+  }
+
+  .notify-toggle.is-on:hover {
+    color: var(--blue-bright);
+    border-color: var(--blue-bright);
+  }
+}
+
+.notify-toggle:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* The label is the first thing worth dropping on a phone: the bell and its
+   on/off state carry the meaning, and the head has a title and a badge to fit
+   before it. */
+@media (max-width: 560px) {
+  .notify-toggle {
+    padding: 0.28rem 0.45rem;
+    gap: 0;
+    font-size: 0;
+    letter-spacing: 0;
+  }
 }
 
 /* --- Scoreboard --- */

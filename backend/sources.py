@@ -1411,19 +1411,39 @@ def _pickcenter_line(payload: Dict[str, Any]) -> tuple:
     return None, None
 
 
-def fetch_live_game() -> Optional[LiveGame]:
-    """The game currently worth watching, as one payload.
+def _matchup_name(panthers: LiveTeam, opponent: LiveTeam) -> str:
+    away, home = (opponent, panthers) if panthers.home else (panthers, opponent)
+    return f"{away.name} at {home.name}"
 
-    Returns None when Carolina has no game on the current schedule at all, which
-    is a genuinely empty tab rather than a failure.
+
+def _selection_from_summary(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """The scheduling facts `_select_event` supplies, read back out of a summary.
+
+    A game reached by id has no schedule entry in hand, but the summary's own
+    header carries the same week, season and broadcast — everything except the
+    matchup's name, which the two teams spell out anyway.
     """
-    selection = _select_event()
-    if selection is None:
-        return None
+    header = payload.get("header") or {}
+    season = header.get("season") or {}
+    competition = (header.get("competitions") or [{}])[0]
+    return {
+        "week": header.get("week"),
+        "season": season.get("year") or current_season(),
+        "season_type": season.get("type") or _ESPN_REGULAR_SEASON,
+        "name": None,
+        "short_name": None,
+        "network": _network(competition),
+    }
 
-    event_id = selection["event_id"]
-    payload = _fetch_espn_json(ESPN_SUMMARY_URL.format(event=event_id))
 
+def _summary_to_live_game(
+    event_id: str, payload: Dict[str, Any], selection: Dict[str, Any]
+) -> LiveGame:
+    """Adapter: one ESPN summary payload onto the normalized LiveGame.
+
+    Split out from `fetch_live_game` so a finished game can be reached by id
+    without going back through "which game should the Live tab show" first.
+    """
     header = payload.get("header") or {}
     competitions = header.get("competitions") or []
     if not competitions:
@@ -1460,7 +1480,9 @@ def fetch_live_game() -> Optional[LiveGame]:
         season_type=season_type,
         season_label=_SEASON_TYPE_LABELS.get(season_type),
         week=selection["week"],
-        name=selection.get("name"),
+        # ESPN's summary header doesn't name the matchup, so it's rebuilt from
+        # the two teams — visitor first, the way a matchup is always written.
+        name=selection.get("name") or _matchup_name(panthers, opponent),
         short_name=selection.get("short_name"),
         state=state,
         completed=bool(status_type.get("completed")),
@@ -1491,7 +1513,7 @@ def fetch_live_game() -> Optional[LiveGame]:
     )
 
     logger.info(
-        "Fetched live game %s (%s): %d stat rows, %d drives, %d win-prob points",
+        "Fetched game %s (%s): %d stat rows, %d drives, %d win-prob points",
         event_id,
         state,
         len(game.team_stats),
@@ -1499,3 +1521,32 @@ def fetch_live_game() -> Optional[LiveGame]:
         len(game.win_probability),
     )
     return game
+
+
+def fetch_live_game() -> Optional[LiveGame]:
+    """The game currently worth watching, as one payload.
+
+    Returns None when Carolina has no game on the current schedule at all, which
+    is a genuinely empty tab rather than a failure.
+    """
+    selection = _select_event()
+    if selection is None:
+        return None
+
+    event_id = selection["event_id"]
+    payload = _fetch_espn_json(ESPN_SUMMARY_URL.format(event=event_id))
+    return _summary_to_live_game(event_id, payload, selection)
+
+
+def fetch_game(event_id: str) -> LiveGame:
+    """One game by id, for the recap a schedule row links to.
+
+    Same payload and same adapter as the live tab — a finished game is only a
+    live one that stopped changing — which is what lets every chart written for
+    kickoff work on a game from October.
+
+    Raises when Carolina isn't in it, so an arbitrary event id can't turn this
+    into a general-purpose NFL proxy.
+    """
+    payload = _fetch_espn_json(ESPN_SUMMARY_URL.format(event=event_id))
+    return _summary_to_live_game(event_id, payload, _selection_from_summary(payload))

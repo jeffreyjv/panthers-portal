@@ -1,0 +1,16 @@
+<!-- Home-screen icon: the same claw as favicon.svg, but on its own ground.
+
+     A launcher icon can't be transparent line art the way a 16px tab mark can,
+     and Android crops whatever it's given to whatever shape the device uses.
+     So the claw sits at 60% inside a filled square, which keeps it clear of
+     the maskable safe zone (the middle 80%) under any crop. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0b0e11" />
+  <g transform="translate(256 256) scale(8) translate(-24.5 -21)">
+    <g fill="#0085ca">
+      <path d="M10 4c3 8 3 20 1 34-3-13-4-25-1-34z" />
+      <path d="M23 2c3 9 3 22 1 38-3-14-4-27-1-38z" />
+      <path d="M36 4c3 8 3 20 1 34-3-13-4-25-1-34z" />
+    </g>
+  </g>
+</svg>

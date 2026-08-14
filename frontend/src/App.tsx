@@ -4,6 +4,7 @@ import { Countdown } from "./Countdown";
 import { Live } from "./Live";
 import { useLive } from "./liveStore";
 import { News } from "./News";
+import { navigate, pathOf, Tab, tabOf, useRoute } from "./router";
 import { Schedule } from "./Schedule";
 import { ScoreToasts } from "./ScoreToasts";
 import { SocialLinks } from "./SocialLinks";
@@ -11,7 +12,6 @@ import { Talk } from "./Talk";
 import { Team } from "./Team";
 
 type Theme = "dark" | "light";
-type Tab = "news" | "live" | "schedule" | "team" | "talk";
 
 const THEME_KEY = "panthers-portal-theme";
 
@@ -127,50 +127,41 @@ function Header({
   );
 }
 
-/** Where to open on load.
- *
- * Google's callback returns to "/?auth=...", which would otherwise drop the
- * user on News — away from the tab they signed in to use. "?tab=" is the
- * explicit form, which is also how the device wall drives all three frames to
- * the same screen at once.
- */
-function initialTab(): Tab {
-  const params = new URLSearchParams(window.location.search);
-  if (params.has("auth")) return "talk";
-
-  const requested = params.get("tab");
-  return TABS.some((t) => t.id === requested) ? (requested as Tab) : "news";
-}
-
 export default function App() {
   const { theme, toggle } = useTheme();
-  const [tab, setTab] = useState<Tab>(initialTab);
+  const route = useRoute();
   // Subscribing here keeps the shared poll running on every tab, which is the
   // point: the Live tab has to be able to flag a kickoff you aren't watching.
   const { game } = useLive();
 
-  // Otherwise switching tabs while scrolled down drops you mid-page.
+  // Otherwise switching tabs while scrolled down drops you mid-page. Keyed on
+  // the path so opening a story or a recap starts at the top too.
+  const path = pathOf(route);
   useEffect(() => {
     window.scrollTo({ top: 0 });
-  }, [tab]);
+  }, [path]);
 
   return (
     <div className="page">
       <Header
         theme={theme}
         onToggleTheme={toggle}
-        tab={tab}
-        onSelectTab={setTab}
+        tab={tabOf(route)}
+        onSelectTab={(id) => navigate({ name: id })}
         gameIsLive={game?.state === "in"}
       />
 
       <main className="main">
-        <div className="tab-panel" key={tab}>
-          {tab === "news" && <News />}
-          {tab === "live" && <Live />}
-          {tab === "schedule" && <Schedule />}
-          {tab === "team" && <Team />}
-          {tab === "talk" && <Talk />}
+        {/* Keyed on the tab, not the path: the entrance animation belongs to
+            arriving at a section, and opening a story inside one shouldn't
+            replay it — or throw away the feed behind it. */}
+        <div className="tab-panel" key={tabOf(route)}>
+          {(route.name === "news" || route.name === "article") && <News />}
+          {route.name === "live" && <Live />}
+          {route.name === "game" && <Live eventId={route.eventId} />}
+          {route.name === "schedule" && <Schedule />}
+          {route.name === "team" && <Team />}
+          {route.name === "talk" && <Talk />}
         </div>
       </main>
 

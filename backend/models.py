@@ -363,9 +363,12 @@ class Standings(BaseModel):
     """
 
     season: int
-    # True when the season is over, or hasn't kicked off yet and these are the
-    # previous season's final numbers.
+    # True when the season these numbers belong to is over.
     final: bool = False
+    # True before Week 1, when every line has been zeroed back to 0-0. Callers
+    # use it to drop the parts of the table that only mean something once games
+    # have been played: rank, streak, opponent records.
+    preseason: bool = False
     division: List[TeamStanding] = []
     league: Dict[str, TeamStanding] = {}
 
