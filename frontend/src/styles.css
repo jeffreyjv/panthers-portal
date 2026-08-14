@@ -1507,6 +1507,10 @@ a {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  /* A spelled-out injury status is the widest tag here; let it drop to its own
+     line on a narrow card rather than pushing out of the row. */
+  flex-wrap: wrap;
+  row-gap: 0.3rem;
 }
 
 .player-number {
@@ -2254,121 +2258,8 @@ a {
   }
 }
 
-/* ---------- Injury report ---------- */
-/* Sits under the schedule, so it needs air above it to read as its own thing
-   rather than a trailing game row. */
-.injury-report {
-  margin-top: 2.5rem;
-}
-
-.injury-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.injury {
-  display: grid;
-  grid-template-columns: 48px 1fr auto;
-  align-items: center;
-  gap: 0.9rem;
-  padding: 0.8rem 1.1rem;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  transition: border-color 0.2s ease, transform 0.2s ease;
-}
-
-@media (hover: hover) {
-  a.injury:hover {
-    border-color: var(--blue);
-    transform: translateX(3px);
-  }
-}
-
-.injury-shot {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  object-fit: cover;
-  /* Same crop bias as the roster: headshots frame from the chest up. */
-  object-position: top center;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-}
-
-.injury-shot-fallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.injury-shot-claw {
-  width: 40%;
-  color: var(--claw-ghost);
-  transform: rotate(-8deg);
-}
-
-.injury-main {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.injury-name {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-family: "Barlow Condensed", sans-serif;
-  font-weight: 700;
-  font-size: 1.16rem;
-  line-height: 1.1;
-  color: var(--ink);
-}
-
-.injury-position {
-  font-family: "Barlow", sans-serif;
-  font-size: 0.64rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--silver);
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.1rem 0.38rem;
-}
-
-.injury-ailment {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--silver);
-}
-
-/* The beat-reporter note. Two lines is enough to know what happened; the full
-   thing belongs on the player card this row links to. */
-.injury-comment {
-  margin: 0.15rem 0 0;
-  font-size: 0.78rem;
-  line-height: 1.4;
-  color: var(--silver-dim);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.injury-status {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.3rem;
-}
-
+/* ---------- Injury status pill ---------- */
+/* Worn by roster cards on the Team tab, next to a player's number and slot. */
 .injury-pill {
   font-family: "Barlow Condensed", sans-serif;
   font-weight: 800;
@@ -2406,54 +2297,66 @@ a {
   border-color: color-mix(in srgb, var(--status-questionable) 42%, transparent);
 }
 
-.injury-return {
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  color: var(--silver-dim);
+/* Roster cards run their tags smaller than the standalone report did. */
+.injury-pill.is-mini {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.45rem;
 }
 
-/* The empty state, which in the offseason is a real and welcome answer. */
-.injury-clean {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin: 0;
-  padding: 1rem 1.1rem;
-  background: var(--panel);
+/* ---------- Injury detail tooltip ---------- */
+/* Replaces the native `title` box, which takes a second to appear and loses
+   its timer to the card's hover lift. */
+.injury-pill[data-tip] {
+  position: relative;
+  cursor: help;
+}
+
+.injury-pill[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  transform: translateX(-50%) translateY(3px);
+  z-index: 20;
+
+  /* The note runs to a couple of sentences, so it wraps to a readable column
+     and keeps the newline that separates it from the ailment. */
+  width: max-content;
+  max-width: 250px;
+  white-space: pre-line;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-family: "Barlow", sans-serif;
+  font-weight: 500;
+  font-size: 0.74rem;
+  line-height: 1.45;
+
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--panel-2);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-size: 0.92rem;
-  color: var(--silver);
+  box-shadow: var(--shadow-card);
+
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.14s ease, transform 0.14s ease, visibility 0.14s;
 }
 
-.injury-clean-claw {
-  width: 1.1rem;
-  flex: none;
-  color: var(--blue);
+.injury-pill[data-tip]:hover::after,
+.injury-pill[data-tip]:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
 }
 
-@media (max-width: 560px) {
-  .injury {
-    grid-template-columns: 40px 1fr auto;
-    gap: 0.7rem;
-    padding: 0.7rem 0.85rem;
-  }
-  .injury-shot {
-    width: 40px;
-    height: 40px;
-  }
-  /* The note used to be dropped here, but "questionable" without "hamstring,
-     limited in practice Wednesday" is the half a fan cares less about. Clamped
-     to two lines it stays readable without the row growing unbounded. */
-  .injury-comment {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    overflow: hidden;
-  }
+/* Lift the whole card so the tooltip clears the rows below it. */
+.player:has(.injury-pill[data-tip]:hover),
+.player:has(.injury-pill[data-tip]:focus-visible) {
+  position: relative;
+  z-index: 10;
 }
 
 /* ---------- Odds strip ---------- */

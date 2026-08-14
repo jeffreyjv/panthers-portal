@@ -17,7 +17,6 @@ import {
 } from "./api";
 import { ClawMark } from "./ClawMark";
 import { DivisionStrip, DivisionStripSkeleton } from "./DivisionStrip";
-import { Injuries } from "./Injuries";
 import { SeasonOdds, SeasonOddsSkeleton } from "./Odds";
 
 type Status = "loading" | "error" | "ready";
@@ -319,7 +318,6 @@ export function Schedule() {
               />
             ))}
       </ul>
-      <Injuries />
     </>
   );
 }

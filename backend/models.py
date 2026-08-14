@@ -310,6 +310,9 @@ class Injury(BaseModel):
     """
 
     id: str
+    # ESPN's athlete id, which joins this line to `Player.id` on the roster.
+    # `id` above is the id of the report entry, not of the player.
+    athlete_id: Optional[str] = None
     name: str
     position: Optional[str] = None
     headshot: Optional[str] = None

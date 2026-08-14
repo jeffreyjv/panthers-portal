@@ -43,6 +43,8 @@ export interface Player {
 
 export interface Injury {
   id: string;
+  /** ESPN's athlete id — joins this line to a `Player.id` on the roster. */
+  athlete_id: string | null;
   name: string;
   position: string | null;
   headshot: string | null;

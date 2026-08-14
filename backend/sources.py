@@ -747,6 +747,27 @@ def _athlete_link(athlete: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+# ".../nfl/player/_/id/4241416/chuba-hubbard" -> "4241416".
+_ATHLETE_ID_IN_URL = re.compile(r"/id/(\d+)")
+
+
+def _athlete_id(athlete: Dict[str, Any]) -> Optional[str]:
+    """The athlete's ESPN id, dug out of the links they appear in.
+
+    Unlike the roster feed, the injuries document carries no `id` on the athlete
+    itself — the only place the number appears is inside the href of the links
+    ESPN attaches (player card, stats, news), which all key on it.
+    """
+    for link in athlete.get("links") or []:
+        href = link.get("href")
+        if not isinstance(href, str):
+            continue
+        match = _ATHLETE_ID_IN_URL.search(href)
+        if match:
+            return match.group(1)
+    return None
+
+
 def _entry_to_injury(entry: Dict[str, Any]) -> Optional[Injury]:
     """Adapter: map one ESPN injury entry onto the normalized Injury model."""
     athlete = entry.get("athlete") or {}
@@ -761,6 +782,7 @@ def _entry_to_injury(entry: Dict[str, Any]) -> Optional[Injury]:
         # Falls back to the name so an entry without an id still renders with a
         # stable React key instead of colliding with every other id-less row.
         id=str(entry.get("id") or name),
+        athlete_id=_athlete_id(athlete),
         name=name,
         position=(athlete.get("position") or {}).get("abbreviation"),
         headshot=(athlete.get("headshot") or {}).get("href"),
