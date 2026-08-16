@@ -5,11 +5,13 @@ ESPN's public team endpoint (schedule). No scheduler, no Redis, no database.
 """
 
 import base64
+import html
 import logging
 import os
 import re
 import threading
 import time
+import urllib.parse
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import asynccontextmanager
@@ -18,9 +20,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Deque, Dict, Hashable, List, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 # Imported first: loads backend/.env into the environment before anything below
@@ -860,6 +862,145 @@ def health() -> dict:
     }
 
 
+# --- Link previews -----------------------------------------------------------
+# A link pasted into iMessage, Slack or Discord is fetched by a scraper that
+# reads the HTML and never runs the bundle, so a story's own title and art have
+# to be in the served document. index.html carries the site-wide card; the two
+# routes that name one specific thing get theirs written in here on the way out.
+
+
+@dataclass
+class Preview:
+    """What one route's card says. `image` absolute, or None for the default."""
+
+    title: str
+    description: str
+    image: Optional[str] = None
+
+
+def _preview_base_url(request: Request) -> str:
+    """Origin to resolve the card's absolute URLs against.
+
+    Scrapers won't resolve a relative og:image — there's no document context on
+    their end to resolve it against — so every URL in the card has to be
+    absolute, and that means knowing the origin the page was served on.
+    """
+    configured = os.getenv("APP_BASE_URL")
+    if configured:
+        return configured.rstrip("/")
+
+    # Render (and every other proxy) terminates TLS upstream, so the request's
+    # own scheme reads http on a page that was served over https. Trusting the
+    # forwarded header is safe for a URL that only ever goes into a meta tag.
+    forwarded = request.headers.get("x-forwarded-proto", "")
+    scheme = forwarded.split(",")[0].strip() or request.url.scheme
+    host = request.headers.get("host") or request.url.netloc
+    return f"{scheme}://{host}"
+
+
+def _truncate(text: str, limit: int = 200) -> str:
+    """Clip to a whole word — scrapers cut mid-sentence anyway, uglier."""
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(" ", 1)[0].rstrip(",.;:—-") + "…"
+
+
+def _article_preview(article_id: str) -> Optional[Preview]:
+    article = next((a for a in get_articles() if a.id == article_id), None)
+    if article is None:
+        return None
+
+    image = article.image_url
+    # The card's own art only works if it's absolute and fetchable; a relative
+    # or protocol-less src falls back to the site card rather than breaking it.
+    if image and not image.startswith(("http://", "https://")):
+        image = None
+
+    return Preview(
+        title=f"{article.title} — Panthers Portal",
+        description=_truncate(article.summary or f"From {article.source}."),
+        image=image,
+    )
+
+
+def _game_preview(event_id: str) -> Optional[Preview]:
+    if not event_id.isdigit():
+        return None
+
+    game = _game_cache.get(lambda: fetch_game(event_id), key=event_id)
+    us, them = game.panthers, game.opponent
+
+    if game.state == "pre":
+        title = f"{us.short_name} vs {them.short_name}"
+        if game.kickoff:
+            # Comma, not a dash: the site name is appended with one below, and
+            # two em-dashes in one title read as a mistake.
+            title = f"{title}, {game.kickoff.strftime('%b %-d')}"
+    else:
+        # Score first, in the order the game actually stands, because that's
+        # the whole reason someone sent the link.
+        lead, trail = (us, them) if (us.score or 0) >= (them.score or 0) else (them, us)
+        title = (
+            f"{lead.short_name} {lead.score or 0}, "
+            f"{trail.short_name} {trail.score or 0}"
+        )
+
+    parts = [p for p in (game.status_detail, game.venue, game.broadcast) if p]
+    return Preview(
+        title=f"{title} — Panthers Portal",
+        description=_truncate(" · ".join(parts)) or "Carolina Panthers game details.",
+    )
+
+
+def _set_meta(html_text: str, attr: str, name: str, value: Optional[str]) -> str:
+    """Rewrite one meta tag's content, or drop the tag when value is None.
+
+    `[^>]*` can't run past the end of a tag, so this stays inside the one it
+    matched even though prettier has spread these across several lines.
+    """
+    pattern = re.compile(rf'<meta\b[^>]*\b{attr}="{re.escape(name)}"[^>]*>')
+    if value is None:
+        # Take the line's indentation and newline with it, or removing a tag
+        # leaves a blank line behind in the served source.
+        return re.sub(rf"[ \t]*{pattern.pattern}\n?", "", html_text, count=1)
+    tag = f'<meta {attr}="{name}" content="{html.escape(value, quote=True)}" />'
+    return pattern.sub(lambda _: tag, html_text, count=1)
+
+
+def _render_preview(html_text: str, preview: Preview, url: str, base: str) -> str:
+    """Stamp one route's card into the document index.html ships with."""
+    image = preview.image or f"{base}/og.png"
+
+    html_text = re.sub(
+        r"<title>.*?</title>",
+        lambda _: f"<title>{html.escape(preview.title)}</title>",
+        html_text,
+        count=1,
+        flags=re.DOTALL,
+    )
+    for attr, name, value in (
+        ("name", "description", preview.description),
+        ("property", "og:title", preview.title),
+        ("property", "og:description", preview.description),
+        ("property", "og:url", url),
+        ("property", "og:image", image),
+        ("property", "og:image:alt", preview.title),
+        # An article is a page about one thing, not the site.
+        ("property", "og:type", "article"),
+    ):
+        html_text = _set_meta(html_text, attr, name, value)
+
+    if preview.image:
+        # The dimensions belong to the default card. Story art is whatever the
+        # wire sent, and a card that lies about its size renders worse than one
+        # that says nothing — Slack trusts the numbers over the file.
+        for name in ("og:image:width", "og:image:height"):
+            html_text = _set_meta(html_text, "property", name, None)
+
+    return html_text
+
+
 # --- Frontend ----------------------------------------------------------------
 # Registered last so the catch-all below can never shadow an /api route. Skipped
 # entirely when there's no build, which is the normal case in dev: there Vite
@@ -870,7 +1011,7 @@ if FRONTEND_DIST.is_dir():
     )
 
     @app.get("/{full_path:path}")
-    def spa(full_path: str) -> FileResponse:
+    def spa(full_path: str, request: Request) -> Response:
         """Serve a built file if one matches, otherwise the SPA entry point.
 
         Client-side routes have no file behind them, so unmatched paths fall
@@ -889,4 +1030,40 @@ if FRONTEND_DIST.is_dir():
         ):
             return FileResponse(candidate)
 
-        return FileResponse(FRONTEND_DIST / "index.html")
+        index = FRONTEND_DIST / "index.html"
+        preview = _route_preview(full_path)
+        if preview is None:
+            return FileResponse(index)
+
+        base = _preview_base_url(request)
+        html_text = _render_preview(
+            index.read_text(encoding="utf-8"),
+            preview,
+            f"{base}/{full_path}",
+            base,
+        )
+        # The document differs per route now, so a shared cache keying on the
+        # path alone would otherwise hand one story's card to another's URL.
+        return HTMLResponse(html_text, headers={"Cache-Control": "no-cache"})
+
+    def _route_preview(full_path: str) -> Optional[Preview]:
+        """The card for a path that names one thing, or None for the rest.
+
+        Every failure here — an id that has rolled off the feed, an upstream
+        that's down — falls back to the site-wide card baked into index.html.
+        A page still renders without a preview; it doesn't render without HTML.
+        """
+        head, _, rest = full_path.partition("/")
+        ident = urllib.parse.unquote(rest)
+        if not ident or "/" in ident:
+            return None
+
+        try:
+            if head == "article":
+                return _article_preview(ident)
+            if head == "game":
+                return _game_preview(ident)
+        except Exception:
+            logger.exception("Preview failed for /%s", full_path)
+
+        return None

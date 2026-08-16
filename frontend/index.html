@@ -16,6 +16,38 @@
       content="black-translucent"
     />
     <title>Panthers Portal</title>
+    <meta
+      name="description"
+      content="Carolina Panthers news, live scores, schedule and roster — the official feed and ESPN's, merged."
+    />
+
+    <!-- Link previews. Every scraper that matters (iMessage, Slack, Discord,
+         WhatsApp, X) fetches the HTML and never runs the bundle, so these have
+         to be in the served document — React can't put them here later. The
+         image URL is absolute for the same reason: there's no page context to
+         resolve a relative one against.
+
+         backend/main.py rewrites this block per route for /article/{id} and
+         /game/{event_id}; the values below are what everything else gets. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Panthers Portal" />
+    <meta property="og:title" content="Panthers Portal" />
+    <meta
+      property="og:description"
+      content="Carolina Panthers news, live scores, schedule and roster — the official feed and ESPN's, merged."
+    />
+    <meta property="og:url" content="https://panthers-portal.onrender.com/" />
+    <meta
+      property="og:image"
+      content="https://panthers-portal.onrender.com/og.png"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Panthers Portal — news, scores, schedule and roster."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
     <script>
       // Apply the stored theme before first paint so light mode doesn't flash dark.
       var t = localStorage.getItem("panthers-portal-theme");

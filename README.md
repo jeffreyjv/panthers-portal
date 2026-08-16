@@ -199,6 +199,47 @@ backend adapter is shared too — `_summary_to_live_game` in `backend/sources.py
 — so the win probability, drives and scoring summary written for kickoff work
 on a game from October. Finished schedule rows link there instead of to ESPN.
 
+### Link previews
+
+Pasting a link into iMessage, Slack or Discord shows a card, which means Open
+Graph tags — and those have to be in the HTML as served. Every one of those
+scrapers fetches the document and never runs the bundle, so a tag React sets on
+mount is a tag they never see.
+
+`frontend/index.html` carries the site-wide card, pointing at `public/og.png`
+(1200×630). The two routes that name one specific thing get their own, written
+into the document by `_render_preview` in `backend/main.py` on the way out:
+
+- `/article/{id}` — the headline, the summary, and the story's own art.
+- `/game/{event_id}` — the score if it's been played, the matchup and kickoff
+  if it hasn't.
+
+Both resolve against the same caches the API serves from, so a preview costs
+no upstream request that the page wasn't going to make. Anything that fails —
+an id that rolled off the feed, an upstream that's down — falls back to the
+site-wide card, because a page renders without a preview and doesn't render
+without HTML.
+
+Two details worth keeping: URLs in the card are absolute (a scraper has no
+document context to resolve a relative one against), built from `APP_BASE_URL`
+or the request's forwarded host; and `og:image:width`/`height` are *dropped*
+when a story supplies its own art, since those numbers describe `og.png` and a
+card that lies about its size renders worse than one that says nothing.
+
+`og.png` is generated, not drawn by hand — `frontend/og-card.html` is the
+source, screenshotted at 1200×630:
+
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --headless --window-size=1200,630 --virtual-time-budget=6000 \
+  --screenshot=frontend/public/og.png frontend/og-card.html
+```
+
+Scrapers cache cards hard. After changing one, re-fetch through
+[Facebook's debugger](https://developers.facebook.com/tools/debug/) or post the
+link in a fresh thread; an iMessage thread that has already previewed a URL
+will keep showing the old card.
+
 ### Installing it
 
 `public/manifest.webmanifest` plus `public/sw.js`, registered from `main.tsx`
@@ -229,8 +270,9 @@ breakpoints fire exactly as they do on the device. What it can't reproduce is
 everything that isn't CSS — momentum scrolling, Safari's zoom-on-focus, and a
 real safe area.
 
-Both dev files stay out of the build: `devices.html` sits outside `public/`, and
-`live-fixture.json` is read by a plugin marked `apply: "serve"`.
+The dev files stay out of the build: `devices.html` and `og-card.html` sit
+outside `public/`, and `live-fixture.json` is read by a plugin marked
+`apply: "serve"`.
 
 ### Seeing the Live tab out of season
 

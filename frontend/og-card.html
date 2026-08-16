@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1200px; height: 630px; }
+      body {
+        background: #0b0e11;
+        font-family: "Barlow", system-ui, sans-serif;
+        position: relative;
+        overflow: hidden;
+      }
+      /* Blue wash bleeding from the lower left, the way the app's header sits
+         on a dark ground. */
+      .glow {
+        position: absolute;
+        left: -240px;
+        bottom: -320px;
+        width: 900px;
+        height: 900px;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle,
+          rgba(0, 133, 202, 0.30) 0%,
+          rgba(0, 133, 202, 0.10) 45%,
+          rgba(0, 133, 202, 0) 70%
+        );
+      }
+      /* Oversized claw held whole on the right — cropped, the three slashes
+         stop reading as a claw and turn into stray stripes. */
+      .watermark {
+        position: absolute;
+        right: 56px;
+        top: 50%;
+        transform: translateY(-50%);
+        height: 500px;
+        opacity: 0.16;
+      }
+      .content {
+        position: relative;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 0 92px;
+        gap: 26px;
+      }
+      .lockup { display: flex; align-items: center; gap: 30px; }
+      .mark { height: 128px; flex: none; }
+      h1 {
+        font-family: "Barlow Condensed", "Helvetica Neue", sans-serif;
+        font-weight: 800;
+        font-size: 116px;
+        line-height: 0.9;
+        letter-spacing: -0.5px;
+        color: #f4f7fa;
+        text-transform: uppercase;
+      }
+      h1 .accent { color: #0085ca; display: block; }
+      .rule {
+        width: 132px;
+        height: 7px;
+        background: #0085ca;
+        border-radius: 4px;
+      }
+      p {
+        font-size: 35px;
+        font-weight: 500;
+        color: #9fb0bf;
+        letter-spacing: 0.3px;
+      }
+      .sep { color: #0085ca; padding: 0 12px; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <div class="glow"></div>
+
+    <svg class="watermark" viewBox="7 0 33 42" fill="none">
+      <g fill="#0085ca">
+        <path d="M10 4c3 8 3 20 1 34-3-13-4-25-1-34z" />
+        <path d="M23 2c3 9 3 22 1 38-3-14-4-27-1-38z" />
+        <path d="M36 4c3 8 3 20 1 34-3-13-4-25-1-34z" />
+      </g>
+    </svg>
+
+    <div class="content">
+      <div class="lockup">
+        <svg class="mark" viewBox="7 0 33 42">
+          <g fill="#0085ca">
+            <path d="M10 4c3 8 3 20 1 34-3-13-4-25-1-34z" />
+            <path d="M23 2c3 9 3 22 1 38-3-14-4-27-1-38z" />
+            <path d="M36 4c3 8 3 20 1 34-3-13-4-25-1-34z" />
+          </g>
+        </svg>
+        <h1>Panthers<span class="accent">Portal</span></h1>
+      </div>
+      <div class="rule"></div>
+      <p>
+        News<span class="sep">·</span>Scores<span class="sep">·</span
+        >Schedule<span class="sep">·</span>Roster
+      </p>
+    </div>
+  </body>
+</html>
