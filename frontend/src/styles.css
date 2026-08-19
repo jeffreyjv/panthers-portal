@@ -2155,6 +2155,71 @@ a {
   flex-wrap: wrap;
 }
 
+/* --- Game thread ---
+   The post the app writes itself at kickoff. Marked with the brand blue rather
+   than a different layout: it takes replies and reactions like any other post,
+   and looking like a different kind of object would suggest otherwise. */
+.talk-pinned {
+  margin-bottom: 1.4rem;
+}
+
+.talk-post.is-game-thread {
+  border-color: var(--blue);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--blue) 8%, var(--panel)),
+    var(--panel) 60%
+  );
+}
+
+.talk-avatar-claw {
+  display: grid;
+  place-items: center;
+  color: var(--blue-bright);
+  background: var(--panel-2);
+}
+
+.talk-avatar-claw svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.talk-game-badge {
+  flex: none;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--blue);
+  border-radius: 999px;
+  color: var(--blue-bright);
+  font-family: "Barlow", sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+@media (hover: hover) {
+  .talk-game-badge:hover {
+    border-color: var(--blue-bright);
+    color: var(--ink);
+  }
+}
+
+.talk-game-badge:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* The head is author + badge + timestamp, which is one item more than it was
+   built for; below this the timestamp wraps rather than squeezing the name. */
+@media (max-width: 420px) {
+  .talk-post.is-game-thread .talk-post-head {
+    flex-wrap: wrap;
+  }
+}
+
 /* --- Reactions --- */
 .talk-reactions {
   display: flex;
@@ -2602,6 +2667,59 @@ a {
    before it. */
 @media (max-width: 560px) {
   .notify-toggle {
+    padding: 0.28rem 0.45rem;
+    gap: 0;
+    font-size: 0;
+    letter-spacing: 0;
+  }
+}
+
+/* --- Game thread link ---
+   Shares the section head with the score-alerts toggle, so it borrows that
+   button's whole shape rather than inventing a second one. It carries the brand
+   blue from the start: unlike the bell there is no off state to be quiet about,
+   and it only ever appears while a game is actually being played. */
+.thread-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  padding: 0.28rem 0.7rem;
+  border: 1px solid var(--blue);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--blue-bright);
+  font-family: "Barlow", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.thread-link svg {
+  width: 14px;
+  height: 14px;
+}
+
+@media (hover: hover) {
+  .thread-link:hover {
+    border-color: var(--blue-bright);
+    color: var(--ink);
+  }
+}
+
+.thread-link:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* Same trade the bell makes on a phone: the icon carries it, and the head has
+   a title, a badge and now two buttons to fit. */
+@media (max-width: 560px) {
+  .thread-link {
     padding: 0.28rem 0.45rem;
     gap: 0;
     font-size: 0;

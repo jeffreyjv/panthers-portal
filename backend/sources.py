@@ -16,8 +16,11 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from html.parser import HTMLParser
+from pathlib import Path
 from time import mktime
 from typing import Any, Dict, List, Optional
+
+import config
 
 import feedparser
 
@@ -1523,12 +1526,34 @@ def _summary_to_live_game(
     return game
 
 
+# The same fixture `npm run dev:live` serves, read here so the backend can be
+# driven with an in-progress game out of season too. The frontend's copy is
+# served by a Vite plugin that never reaches FastAPI, which leaves anything
+# keyed on a live game — the Talk game thread, above all — untestable from
+# August to September without it.
+LIVE_FIXTURE_FILE = (
+    Path(__file__).resolve().parent.parent / "frontend" / "live-fixture.json"
+)
+
+
+def _live_fixture() -> Optional[LiveGame]:
+    """The canned in-progress game, re-read per call so edits show on refresh."""
+    payload = json.loads(LIVE_FIXTURE_FILE.read_text(encoding="utf-8"))
+    logger.info("Serving the live fixture from %s", LIVE_FIXTURE_FILE)
+    return LiveGame.model_validate(payload)
+
+
 def fetch_live_game() -> Optional[LiveGame]:
     """The game currently worth watching, as one payload.
 
     Returns None when Carolina has no game on the current schedule at all, which
     is a genuinely empty tab rather than a failure.
     """
+    # Development only, and off unless asked for: the flag is read per call so
+    # it can be flipped without editing anything.
+    if config.flag("LIVE_FIXTURE", False):
+        return _live_fixture()
+
     selection = _select_event()
     if selection is None:
         return None

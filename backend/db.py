@@ -113,6 +113,28 @@ def upsert_user(
     return row
 
 
+# The app's own account, used for the game thread it opens at kickoff. The
+# subject is synthetic: Google issues numeric subs and there is no other login
+# path, so nobody can ever sign in as this row — it exists to satisfy the
+# author foreign key, which is cheaper than making posts.author_id nullable and
+# teaching every query about a second kind of author.
+SYSTEM_GOOGLE_SUB = "system:game-thread"
+SYSTEM_DISPLAY_NAME = "Panthers Portal"
+
+
+def system_user() -> int:
+    """The app's own user id, created on first use."""
+    row = upsert_user(
+        google_sub=SYSTEM_GOOGLE_SUB,
+        # Never served — PostAuthor has no email field — and unroutable by
+        # construction, so a bounce can't leak it either.
+        email="noreply@panthers-portal.invalid",
+        display_name=SYSTEM_DISPLAY_NAME,
+        avatar_url=None,
+    )
+    return row["id"]
+
+
 def create_session(user_id: int, token: str) -> None:
     expires = datetime.now(timezone.utc) + timedelta(days=SESSION_TTL_DAYS)
     with pool().connection() as conn:
@@ -157,6 +179,7 @@ _POST_COLUMNS = """
     p.parent_id,
     p.created_at,
     p.edited_at,
+    p.event_id,
     (p.deleted_at IS NOT NULL)                     AS deleted,
     CASE WHEN p.deleted_at IS NULL THEN p.body END AS body,
     u.id           AS author_id,
@@ -306,6 +329,44 @@ def soft_delete_post(post_id: int) -> bool:
             (post_id,),
         )
         return result.rowcount > 0
+
+
+# --- Game threads ------------------------------------------------------------
+def create_game_thread(author_id: int, body: str, event_id: str) -> Optional[int]:
+    """Open the thread for one game, returning its id — or None if it exists.
+
+    `ON CONFLICT DO NOTHING` against the partial unique index is what makes this
+    safe to call on every poll: the second caller writes nothing and learns so
+    from an empty result, with no read-then-write race to lose. The index is
+    partial, so its predicate has to be repeated here for conflict inference to
+    match it.
+    """
+    with pool().connection() as conn:
+        row = conn.execute(
+            """
+            INSERT INTO posts (author_id, body, event_id)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (event_id) WHERE event_id IS NOT NULL DO NOTHING
+            RETURNING id
+            """,
+            (author_id, body, event_id),
+        ).fetchone()
+
+    return row["id"] if row else None
+
+
+def game_thread(event_id: str, viewer_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    """One game's thread, in the same shape as any other post."""
+    sql = f"""
+        SELECT {_POST_COLUMNS}, {_REPLY_COUNT}, {_REACTION_COLUMNS}
+          FROM posts p
+          JOIN users u ON u.id = p.author_id
+         WHERE p.event_id = %(event_id)s AND p.deleted_at IS NULL
+    """
+    with pool().connection() as conn:
+        return conn.execute(
+            sql, {"event_id": event_id, "viewer_id": viewer_id}
+        ).fetchone()
 
 
 # --- Reactions ---------------------------------------------------------------

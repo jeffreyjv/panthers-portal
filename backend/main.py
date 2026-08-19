@@ -31,6 +31,7 @@ import config  # noqa: F401  (imported for its side effect)
 import auth
 import db
 from models import (
+    MAX_POST_LENGTH,
     Article,
     ArticleContent,
     CurrentUser,
@@ -397,7 +398,12 @@ def get_odds() -> Odds:
 
 
 def get_live_game() -> Optional[LiveGame]:
-    return _live_cache.get(fetch_live_game)
+    game = _live_cache.get(fetch_live_game)
+    # Kickoff is a state change nothing else in this app watches for, and the
+    # live cache is the only thing that sees it. Never raises — see the note on
+    # _ensure_game_thread about keeping Talk's failures out of here.
+    _ensure_game_thread(game)
+    return game
 
 
 def _regular_season_started(season: int) -> Optional[bool]:
@@ -636,6 +642,7 @@ def _to_post(row: Dict[str, Any]) -> Post:
     return Post(
         id=row["id"],
         parent_id=row["parent_id"],
+        event_id=row.get("event_id"),
         author=PostAuthor(
             id=row["author_id"],
             display_name=row["author_name"],
@@ -649,6 +656,81 @@ def _to_post(row: Dict[str, Any]) -> Post:
         reactions=row["reactions"],
         viewer_reactions=list(row["viewer_reactions"]),
     )
+
+
+# --- Game threads ------------------------------------------------------------
+# Events this process has already opened a thread for. Purely an optimisation:
+# it keeps a cache hit from costing a database round trip. The unique index on
+# posts.event_id is what actually guarantees one thread per game, across
+# restarts and however many boots the free instance goes through in a season.
+_threaded_events: set = set()
+
+
+def _game_thread_body(game: LiveGame) -> str:
+    """The opening post, built from whatever the scoreboard already knows."""
+    parts = [f"🏈 Game thread — {game.name or game.short_name or 'Panthers game'}."]
+    if game.venue:
+        parts.append(f"Kickoff at {game.venue}.")
+    if game.broadcast:
+        parts.append(f"On {game.broadcast}.")
+    parts.append("Follow the score on the Live tab and talk about the game here.")
+    # Truncated for the same reason a person's post is: nothing downstream
+    # should have to cope with a body the column and the client disagree about.
+    return " ".join(parts)[:MAX_POST_LENGTH]
+
+
+def _ensure_game_thread(game: Optional[LiveGame]) -> None:
+    """Open Talk's thread for a game that has kicked off. Idempotent.
+
+    There is no scheduler in this app, so whoever polls /api/live first after
+    kickoff opens the thread. That is the right trade rather than a compromise:
+    with nobody on the site there is nobody to read a thread either.
+
+    Every failure is swallowed and logged. Talk is deliberately independent of
+    the rest of the app — an unreachable database disables Talk and leaves News,
+    Schedule, Team and Live running — and raising from here would invert exactly
+    that, taking the scoreboard down over a social feature.
+    """
+    if not talk_ready or game is None or game.state != "in":
+        return
+    if game.event_id in _threaded_events:
+        return
+
+    try:
+        thread_id = db.create_game_thread(
+            author_id=db.system_user(),
+            body=_game_thread_body(game),
+            event_id=game.event_id,
+        )
+        # Marked either way: None means the thread already existed, which is
+        # just as good a reason never to ask about this event again.
+        _threaded_events.add(game.event_id)
+        if thread_id is not None:
+            logger.info(
+                "Opened game thread %d for event %s", thread_id, game.event_id
+            )
+    except Exception:
+        logger.exception("Couldn't open a game thread for event %s", game.event_id)
+
+
+@app.get("/api/posts/game-thread", response_model=Optional[Post])
+def game_thread(
+    viewer: Optional[CurrentUser] = Depends(auth.current_user),
+) -> Optional[Post]:
+    """The thread for the game in progress, for the Talk tab to pin.
+
+    Null rather than 404 for every ordinary "no": most of the year there is no
+    game on, and Talk treats the pin as enrichment the way Team treats the
+    injury report — losing it costs the pin, not the feed.
+    """
+    require_talk()
+
+    game = get_live_game()
+    if game is None or game.state != "in":
+        return None
+
+    row = db.game_thread(game.event_id, viewer_id=viewer.id if viewer else None)
+    return _to_post(row) if row else None
 
 
 @app.get("/api/posts", response_model=Feed)

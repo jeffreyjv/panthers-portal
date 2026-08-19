@@ -20,7 +20,7 @@ import {
 } from "./GameCharts";
 import { LiveSnapshot, useLive } from "./liveStore";
 import { toggleNotifications, useNotifyState } from "./notify";
-import { back } from "./router";
+import { back, navigate } from "./router";
 
 /** The clock, phrased the way the state calls for. */
 function StatusBadge({ game }: { game: LiveGame }) {
@@ -381,6 +381,43 @@ function NotifyToggle() {
   );
 }
 
+/** The way out of the Live tab and into the conversation about the same game.
+ *
+ * Offered only while the ball is in play, which is the window the thread is
+ * pinned in Talk. Live has no way to know whether Talk has a database behind
+ * it; if it doesn't, Talk says so itself, which is the right place for that to
+ * surface rather than a button here quietly disappearing.
+ */
+function GameThreadLink() {
+  return (
+    <button
+      type="button"
+      className="thread-link"
+      onClick={() => navigate({ name: "talk" })}
+      title="Talk about this game with other fans"
+    >
+      <ChatIcon />
+      Join the game thread
+    </button>
+  );
+}
+
+function ChatIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M20 4H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3v4l4.5-4H20a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1z" />
+    </svg>
+  );
+}
+
 function BellIcon({ muted }: { muted: boolean }) {
   return (
     <svg
@@ -487,6 +524,10 @@ export function Live({ eventId }: { eventId?: string }) {
         {/* Only where there are still scores to come: the whole offer is
             "we'll tell you", and a finished game has nothing left to tell. */}
         {!eventId && game.state !== "post" && <NotifyToggle />}
+        {/* Same condition the footnote uses for "refreshes automatically": the
+            thread exists while the game is being played, and a recap of an old
+            one shouldn't send anyone to a conversation that has moved on. */}
+        {game.state === "in" && (!eventId || current) && <GameThreadLink />}
       </div>
 
       {game.name && <p className="live-matchup">{game.name}</p>}

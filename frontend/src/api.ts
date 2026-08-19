@@ -483,6 +483,9 @@ export interface PostAuthor {
 export interface Post {
   id: number;
   parent_id: number | null;
+  /** ESPN's event id, set only on a game thread the app opened for itself.
+   *  Null on everything a person wrote, and what the badge is keyed on. */
+  event_id: string | null;
   author: PostAuthor;
   /** Null exactly when `deleted` — a removed post keeps its place, not its text. */
   body: string | null;
@@ -526,6 +529,15 @@ export function fetchFeed(cursor?: string | null): Promise<Feed> {
 
 export function createPost(body: string): Promise<Post> {
   return sendJSON<Post>("/api/posts", "POST", { body });
+}
+
+/** The thread for the game on right now, or null the rest of the year.
+ *
+ * Not routed through `cached()` for the same reason the feed isn't: that cache
+ * never invalidates, and this changes the moment a game starts or ends.
+ */
+export function fetchGameThread(): Promise<Post | null> {
+  return getJSON<Post | null>("/api/posts/game-thread");
 }
 
 export function fetchReplies(postId: number): Promise<Post[]> {

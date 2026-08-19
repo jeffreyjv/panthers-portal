@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { ApiError, createPost, fetchFeed, Post } from "./api";
+import { ApiError, createPost, fetchFeed, fetchGameThread, Post } from "./api";
 import { useAuth, useAuthResult } from "./auth";
 import { ClawMark } from "./ClawMark";
 import { PostCard } from "./PostCard";
@@ -115,6 +115,7 @@ function Composer({ onPosted }: { onPosted: (post: Post) => void }) {
 
 export function Talk() {
   const [posts, setPosts] = useState<Post[]>([]);
+  const [pinned, setPinned] = useState<Post | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [loadingMore, setLoadingMore] = useState(false);
@@ -131,6 +132,16 @@ export function Talk() {
         setStatus("ready");
       })
       .catch(() => active && setStatus("error"));
+
+    // Enrichment, the way Team treats the injury report: a game thread that
+    // fails to load costs the pin, not the feed — and the thread is an ordinary
+    // post, so it is still down there in the feed either way.
+    fetchGameThread()
+      .then((thread) => {
+        if (active) setPinned(thread);
+      })
+      .catch(() => {});
+
     return () => {
       active = false;
     };
@@ -159,6 +170,11 @@ export function Talk() {
     setPosts((current) =>
       current.map((p) => (p.id === id ? { ...p, ...changes } : p)),
     );
+    // The pinned thread is the same post as the one in the feed, so a reaction
+    // on either copy has to land on both or they visibly disagree.
+    setPinned((current) =>
+      current && current.id === id ? { ...current, ...changes } : current,
+    );
   }
 
   function removed(id: number) {
@@ -172,10 +188,30 @@ export function Talk() {
     );
   }
 
+  // The thread is an ordinary top-level post, so it arrives in both — hoisting
+  // it without dropping it here would render it twice.
+  const feed = pinned ? posts.filter((p) => p.id !== pinned.id) : posts;
+
   return (
     <>
       <AuthBanner />
       <Composer onPosted={(post) => setPosts((current) => [post, ...current])} />
+
+      {pinned && (
+        <div className="talk-pinned">
+          <div className="section-head">
+            <h2 className="section-title">Game thread</h2>
+            <span className="section-rule" />
+          </div>
+          <ul className="talk-list">
+            <PostCard
+              post={pinned}
+              onChange={(changes) => patch(pinned.id, changes)}
+              onRemoved={() => setPinned(null)}
+            />
+          </ul>
+        </div>
+      )}
 
       <div className="section-head">
         <h2 className="section-title">Fan Talk</h2>
@@ -204,7 +240,7 @@ export function Talk() {
         </div>
       )}
 
-      {status === "ready" && posts.length === 0 && (
+      {status === "ready" && feed.length === 0 && (
         <div className="notice">
           <ClawMark className="notice-claw" />
           <h2>Nobody’s said anything yet</h2>
@@ -212,9 +248,9 @@ export function Talk() {
         </div>
       )}
 
-      {status === "ready" && posts.length > 0 && (
+      {status === "ready" && feed.length > 0 && (
         <ul className="talk-list">
-          {posts.map((post) => (
+          {feed.map((post) => (
             <PostCard
               key={post.id}
               post={post}

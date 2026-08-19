@@ -44,6 +44,7 @@ Talk (see [Talk](#talk) below). Reading needs no account; every write does:
 - `GET|POST /api/posts/{id}/replies` — one level of replies.
 - `DELETE /api/posts/{id}` — soft delete, author only.
 - `POST /api/posts/{id}/reactions` — toggle one emoji.
+- `GET /api/posts/game-thread` — the thread for the game in progress, or null.
 - `GET /api/auth/google`, `/api/auth/google/callback`, `POST /api/auth/logout`,
   `GET /api/auth/me` — Google sign-in and the current session.
 
@@ -131,6 +132,22 @@ render path. The one-level rule is enforced in `db.create_post`, not the
 schema. Deletion is soft: a removed post that still has replies survives as a
 tombstone so the thread under it holds together, and its body is never served
 again; one without replies disappears entirely.
+
+**A game thread posts itself at kickoff.** The first request to `/api/live`
+that finds Carolina's game in the `in` state opens a top-level post for it,
+authored by the app, which the Talk tab pins above the feed while the game is on
+and the Live tab links to. There is no scheduler: whoever polls first opens it,
+and with nobody on the site there is nobody to read a thread either.
+
+The idempotency lives entirely in a **partial unique index on `posts.event_id`**,
+so `ON CONFLICT DO NOTHING` absorbs every duplicate — a restart, a cache refilled
+after the instance slept, two requests racing at kickoff. Nothing in the
+application has to remember whether it already posted. The author is a `users`
+row with a synthetic `google_sub` that Google can never issue, which satisfies
+the author foreign key without making `author_id` nullable and teaching every
+query about a second kind of author; it is created on first use. Every failure
+on this path is caught and logged, because the alternative is taking the
+scoreboard down over a social feature.
 
 **Sign-in is the OAuth authorization-code flow written out over `urllib`**, so
 the app needs no cryptography dependency. Reading the profile from Google's
@@ -286,6 +303,17 @@ npm run dev:live     # LIVE_FIXTURE=1, serves frontend/live-fixture.json at /api
 The fixture is a third-quarter one-score game with 47 win-probability points, ten
 drives and seven scoring plays — enough for every chart on the tab to have
 something to draw. Edit the JSON and refresh; it's re-read per request.
+
+That plugin answers `/api/live` inside Vite, so the request never reaches
+FastAPI — which leaves anything the *backend* keys on a live game untestable out
+of season, the game thread above all. The same flag works there for that reason:
+
+```bash
+cd backend && LIVE_FIXTURE=1 uvicorn main:app --reload --port 8000
+```
+
+It reads the same `frontend/live-fixture.json`, per request, and is off unless
+asked for.
 
 ## Deployment
 

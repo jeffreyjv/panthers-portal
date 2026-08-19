@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, MouseEvent, useState } from "react";
 import {
   ApiError,
   createReply,
@@ -10,11 +10,33 @@ import {
   relativeTime,
 } from "./api";
 import { useAuth } from "./auth";
+import { ClawMark } from "./ClawMark";
+import { navigate, pathOf } from "./router";
 
 const MAX_LENGTH = 500;
 
-/** Initials fallback when Google gave us no avatar. */
-function Avatar({ name, src }: { name: string; src: string | null }) {
+/** Initials fallback when Google gave us no avatar.
+ *
+ * A game thread is written by the app rather than a person, so it gets the claw
+ * instead — "PP" would read as somebody's initials, which is the one thing the
+ * author of an automatic post should not look like.
+ */
+function Avatar({
+  name,
+  src,
+  claw = false,
+}: {
+  name: string;
+  src: string | null;
+  claw?: boolean;
+}) {
+  if (claw) {
+    return (
+      <div className="talk-avatar talk-avatar-claw" aria-hidden="true">
+        <ClawMark />
+      </div>
+    );
+  }
   if (src) {
     return <img className="talk-avatar" src={src} alt="" loading="lazy" />;
   }
@@ -28,6 +50,30 @@ function Avatar({ name, src }: { name: string; src: string | null }) {
     <div className="talk-avatar talk-avatar-fallback" aria-hidden="true">
       {initials || "?"}
     </div>
+  );
+}
+
+/** The link back to the game a thread belongs to.
+ *
+ * A real href, intercepted on a plain click the way a news card is, so
+ * "copy link address" still yields something shareable. /game/{id} is right for
+ * a game in progress as well as a finished one — the Live view hands a current
+ * event id back to the shared poll rather than freezing it at one snapshot.
+ */
+function GameThreadBadge({ eventId }: { eventId: string }) {
+  const href = pathOf({ name: "game", eventId });
+  return (
+    <a
+      className="talk-game-badge"
+      href={href}
+      onClick={(e: MouseEvent) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        e.preventDefault();
+        navigate({ name: "game", eventId });
+      }}
+    >
+      Game thread
+    </a>
   );
 }
 
@@ -206,12 +252,17 @@ export function PostCard({
   }
 
   return (
-    <li className="talk-post">
-      <Avatar name={post.author.display_name} src={post.author.avatar_url} />
+    <li className={`talk-post${post.event_id ? " is-game-thread" : ""}`}>
+      <Avatar
+        name={post.author.display_name}
+        src={post.author.avatar_url}
+        claw={Boolean(post.event_id)}
+      />
 
       <div className="talk-post-body">
         <div className="talk-post-head">
           <span className="talk-author">{post.author.display_name}</span>
+          {post.event_id && <GameThreadBadge eventId={post.event_id} />}
           <span className="meta">{relativeTime(post.created_at)}</span>
           {mine && !post.deleted && (
             <button

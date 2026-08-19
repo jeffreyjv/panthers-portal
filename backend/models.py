@@ -416,6 +416,9 @@ class Post(BaseModel):
 
     id: int
     parent_id: Optional[int] = None
+    # ESPN's event id, set only on a game thread the app opened for itself.
+    # Null on everything a person wrote, which is what the UI keys the badge on.
+    event_id: Optional[str] = None
     author: PostAuthor
     body: Optional[str] = None
     created_at: datetime

@@ -62,3 +62,15 @@ CREATE INDEX IF NOT EXISTS posts_parent_idx ON posts (parent_id, created_at);
 
 -- Supports the expired-session sweep.
 CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions (expires_at);
+
+-- Game threads: the one post per game the app opens for itself at kickoff.
+-- Null on every post a person wrote, which is why the unique index below is
+-- partial — the column is a marker, not a field everything has.
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS event_id TEXT;
+
+-- One thread per ESPN event, permanently. This index is the whole idempotency
+-- story: restarts, a cache refilling after the instance slept, and two requests
+-- racing at kickoff all collapse onto it, so nothing in the application has to
+-- remember whether it has already posted.
+CREATE UNIQUE INDEX IF NOT EXISTS posts_event_idx
+  ON posts (event_id) WHERE event_id IS NOT NULL;
