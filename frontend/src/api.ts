@@ -497,6 +497,9 @@ export interface Post {
   reactions: Record<string, number>;
   /** Which of those the viewer picked. Empty when signed out. */
   viewer_reactions: string[];
+  /** emoji -> the display names behind it, oldest first. Capped server-side,
+   *  so this can be shorter than the count; `reactions` is the real total. */
+  reactors: Record<string, string[]>;
 }
 
 export interface Feed {
@@ -508,6 +511,7 @@ export interface ReactionResult {
   post_id: number;
   reactions: Record<string, number>;
   viewer_reactions: string[];
+  reactors: Record<string, string[]>;
 }
 
 /** The reactions the server accepts. Kept in step with ALLOWED_REACTIONS in

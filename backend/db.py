@@ -187,18 +187,36 @@ _POST_COLUMNS = """
     u.avatar_url   AS author_avatar
 """
 
-# Reaction tallies and the viewer's own picks, aggregated in SQL. Doing this
-# per post in Python is the N+1 that would make the feed crawl first.
-_REACTION_COLUMNS = """
+# How many names a single emoji's hover carries. Beyond a dozen the tooltip
+# stops being readable and starts being a list, and the count already says how
+# many there were in total.
+MAX_REACTOR_NAMES = 12
+
+# Reaction tallies, the viewer's own picks and who reacted, aggregated in SQL.
+# Doing this per post in Python is the N+1 that would make the feed crawl first.
+_REACTION_COLUMNS = f"""
     COALESCE((
         SELECT jsonb_object_agg(emoji, n)
           FROM (SELECT emoji, count(*) AS n
                   FROM reactions WHERE post_id = p.id GROUP BY emoji) tally
-    ), '{}'::jsonb) AS reactions,
+    ), '{{}}'::jsonb) AS reactions,
     COALESCE((
         SELECT array_agg(emoji) FROM reactions
          WHERE post_id = p.id AND user_id = %(viewer_id)s
-    ), ARRAY[]::text[]) AS viewer_reactions
+    ), ARRAY[]::text[]) AS viewer_reactions,
+    -- Who reacted, for the hover. Capped per emoji: the count above is the
+    -- truth about how many, and a tooltip that grows without limit would be
+    -- both unreadable and a way to make the feed payload arbitrarily large.
+    COALESCE((
+        SELECT jsonb_object_agg(emoji, names)
+          FROM (SELECT r.emoji,
+                       (array_agg(ru.display_name ORDER BY r.created_at, ru.id)
+                        )[1:{MAX_REACTOR_NAMES}] AS names
+                  FROM reactions r
+                  JOIN users ru ON ru.id = r.user_id
+                 WHERE r.post_id = p.id
+                 GROUP BY r.emoji) named
+    ), '{{}}'::jsonb) AS reactors
 """
 
 _REPLY_COUNT = """

@@ -2263,6 +2263,8 @@ a {
 }
 
 .talk-reaction {
+  /* Anchors the hover that names who reacted. */
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -2303,6 +2305,48 @@ a {
   font-size: 0.75rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+/* Who reacted, on hover and on keyboard focus. Absolutely positioned so the
+   row doesn't reflow when it appears, and pointer-events off so the tooltip
+   can never sit between the cursor and the button it belongs to. */
+.talk-reaction-who {
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  left: 50%;
+  z-index: 5;
+  transform: translateX(-50%);
+  max-width: min(16rem, 60vw);
+  width: max-content;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--silver);
+  box-shadow: var(--shadow-card);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  text-align: center;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s ease, visibility 0.12s ease;
+}
+
+.talk-reaction:hover .talk-reaction-who,
+.talk-reaction:focus-visible .talk-reaction-who {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* A touch screen has no hover: tapping toggles the reaction, and a tooltip
+   that appeared on that tap would linger with no way to dismiss it. The names
+   are still on the button's accessible label. */
+@media (hover: none) {
+  .talk-reaction-who {
+    display: none;
+  }
 }
 
 /* --- Replies --- */

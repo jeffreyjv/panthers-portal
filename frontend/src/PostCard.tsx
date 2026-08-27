@@ -77,6 +77,21 @@ function GameThreadBadge({ eventId }: { eventId: string }) {
   );
 }
 
+/** "Ali, Sam and 3 others" — who is behind one emoji on one post.
+ *
+ * The names are capped by the server, so the tail is derived from the count
+ * rather than from the list: the number is the truth about how many reacted,
+ * and the names are as many of them as fit.
+ */
+function reactorLabel(names: string[], count: number): string {
+  if (!names.length) return "";
+  const parts = [...names];
+  const hidden = count - names.length;
+  if (hidden > 0) parts.push(`${hidden} other${hidden === 1 ? "" : "s"}`);
+  if (parts.length === 1) return parts[0];
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
 function ReactionBar({
   post,
   onChange,
@@ -95,19 +110,34 @@ function ReactionBar({
 
     const mine = post.viewer_reactions.includes(emoji);
     const count = post.reactions[emoji] ?? 0;
-    const before = { reactions: post.reactions, viewer_reactions: post.viewer_reactions };
+    const before = {
+      reactions: post.reactions,
+      viewer_reactions: post.viewer_reactions,
+      reactors: post.reactors,
+    };
 
     // Optimistic: a reaction that waits on a round trip feels broken, and on a
     // sleeping free instance that round trip can be a full minute.
     const reactions = { ...post.reactions };
+    const reactors = { ...post.reactors };
+    const names = reactors[emoji] ?? [];
     if (mine) {
       if (count <= 1) delete reactions[emoji];
       else reactions[emoji] = count - 1;
+      // Matched by name because that is all the hover carries. Two people
+      // sharing a display name would drop the wrong one for the half-second
+      // before the server's answer lands, which is what reconciling is for.
+      const at = names.lastIndexOf(user.display_name);
+      const without = at === -1 ? names : [...names.slice(0, at), ...names.slice(at + 1)];
+      if (without.length) reactors[emoji] = without;
+      else delete reactors[emoji];
     } else {
       reactions[emoji] = count + 1;
+      reactors[emoji] = [...names, user.display_name];
     }
     onChange({
       reactions,
+      reactors,
       viewer_reactions: mine
         ? post.viewer_reactions.filter((e) => e !== emoji)
         : [...post.viewer_reactions, emoji],
@@ -121,6 +151,7 @@ function ReactionBar({
       onChange({
         reactions: result.reactions,
         viewer_reactions: result.viewer_reactions,
+        reactors: result.reactors,
       });
     } catch {
       onChange(before);
@@ -133,6 +164,7 @@ function ReactionBar({
       {REACTIONS.map((emoji) => {
         const count = post.reactions[emoji] ?? 0;
         const mine = post.viewer_reactions.includes(emoji);
+        const who = reactorLabel(post.reactors[emoji] ?? [], count);
         return (
           <button
             key={emoji}
@@ -140,11 +172,19 @@ function ReactionBar({
             className={`talk-reaction${mine ? " is-mine" : ""}${count ? "" : " is-empty"}`}
             onClick={() => toggle(emoji)}
             aria-pressed={mine}
-            aria-label={`${emoji} ${count}${mine ? ", yours" : ""}`}
+            aria-label={`${emoji} ${count}${mine ? ", yours" : ""}${who ? `: ${who}` : ""}`}
             title={user ? undefined : "Sign in to react"}
           >
             <span aria-hidden="true">{emoji}</span>
             {count > 0 && <span className="talk-reaction-count">{count}</span>}
+            {/* The hover. aria-hidden because the same names are already in the
+                button's label — a tooltip a screen reader reads twice is worse
+                than one it doesn't read at all. */}
+            {who && (
+              <span className="talk-reaction-who" aria-hidden="true">
+                {who}
+              </span>
+            )}
           </button>
         );
       })}

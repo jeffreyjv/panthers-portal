@@ -430,6 +430,10 @@ class Post(BaseModel):
     # Which of those the viewer picked, so the UI can light them up. Always
     # empty when signed out.
     viewer_reactions: List[str] = []
+    # emoji -> the display names behind it, oldest first and capped by the
+    # query. Only names: this is the hover on a reaction, and the same privacy
+    # line PostAuthor draws applies to everyone who taps one.
+    reactors: Dict[str, List[str]] = {}
 
 
 class Feed(BaseModel):
@@ -478,3 +482,4 @@ class ReactionResult(BaseModel):
     post_id: int
     reactions: Dict[str, int] = {}
     viewer_reactions: List[str] = []
+    reactors: Dict[str, List[str]] = {}

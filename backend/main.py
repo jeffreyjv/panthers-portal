@@ -655,6 +655,7 @@ def _to_post(row: Dict[str, Any]) -> Post:
         reply_count=row.get("reply_count", 0),
         reactions=row["reactions"],
         viewer_reactions=list(row["viewer_reactions"]),
+        reactors=row["reactors"],
     )
 
 
@@ -837,6 +838,7 @@ def react(
         post_id=post_id,
         reactions=row["reactions"],
         viewer_reactions=list(row["viewer_reactions"]),
+        reactors=row["reactors"],
     )
 
 
