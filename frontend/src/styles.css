@@ -1846,6 +1846,33 @@ a {
     display: none;
   }
 
+  /* Twenty-odd position chips wrapped to five or six lines here, eating most of
+     a phone screen before a single player showed. One line that scrolls keeps
+     the filter available without pushing the roster below the fold. The row
+     bleeds into .main's side padding so chips are cut by the viewport edge —
+     that clipped chip is the only affordance saying there's more to the right,
+     since the scrollbar is hidden. */
+  .chip-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-inline: -1.25rem;
+    padding-inline: 1.25rem;
+    scroll-padding-inline: 1.25rem;
+  }
+  .chip-row::-webkit-scrollbar {
+    display: none;
+  }
+  /* Flex items in a scroller shrink to fit by default instead of overflowing. */
+  .chip {
+    flex: 0 0 auto;
+  }
+  /* Clear sits last in the DOM, which after the switch to one line is off the
+     right edge exactly when filters are on and it's most wanted. */
+  .chip-clear {
+    order: -1;
+  }
+
 }
 
 @media (max-width: 480px) {
@@ -1863,6 +1890,13 @@ a {
   }
   .footer {
     padding: 1.25rem 0.9rem calc(1.25rem + env(safe-area-inset-bottom));
+  }
+
+  /* Tracks .main's narrower padding so the row still bleeds edge to edge. */
+  .chip-row {
+    margin-inline: -0.9rem;
+    padding-inline: 0.9rem;
+    scroll-padding-inline: 0.9rem;
   }
 
   /* Only the clock still fits alongside the wordmark. */
