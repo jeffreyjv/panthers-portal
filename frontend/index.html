@@ -4,7 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0085ca" />
+    <!-- Google, Slack and iMessage ask for /favicon.ico by name and don't
+         reason about the SVG, so the .ico has to exist as a real file. The
+         PNGs are the square fallback for anything that skips both. -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png" />
     <!-- iOS ignores SVG here and wants a real bitmap on its own ground, so this
          is the launcher icon rather than the tab mark. -->
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -16,6 +22,10 @@
       content="black-translucent"
     />
     <title>Panthers Portal</title>
+    <!-- Every client-side route is served from this one document, so without a
+         canonical each of them looks to a crawler like a separate page with
+         identical markup. backend/main.py rewrites this per route. -->
+    <link rel="canonical" href="https://panthers-portal.onrender.com/" />
     <meta
       name="description"
       content="Carolina Panthers news, live scores, schedule and roster — the official feed and ESPN's, merged."

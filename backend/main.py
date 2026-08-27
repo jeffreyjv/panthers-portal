@@ -1063,6 +1063,15 @@ def _render_preview(html_text: str, preview: Preview, url: str, base: str) -> st
         count=1,
         flags=re.DOTALL,
     )
+    # The canonical is a <link>, not a <meta>, so it doesn't go through
+    # _set_meta with the rest of them.
+    html_text = re.sub(
+        r'<link rel="canonical" href="[^"]*" ?/>',
+        lambda _: f'<link rel="canonical" href="{html.escape(url, quote=True)}" />',
+        html_text,
+        count=1,
+    )
+
     for attr, name, value in (
         ("name", "description", preview.description),
         ("property", "og:title", preview.title),
@@ -1083,6 +1092,52 @@ def _render_preview(html_text: str, preview: Preview, url: str, base: str) -> st
             html_text = _set_meta(html_text, "property", name, None)
 
     return html_text
+
+
+# --- Crawlers ----------------------------------------------------------------
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+def sitemap(request: Request) -> Response:
+    """The URLs worth indexing, built from the live feed.
+
+    Generated rather than shipped as a static file because the story URLs turn
+    over with the feed — a checked-in sitemap would list yesterday's ids.
+    """
+    base = _preview_base_url(request)
+
+    # The tabs, with the front page first and weighted above them.
+    urls: List[tuple[str, Optional[str]]] = [(base + "/", None)]
+    urls += [(f"{base}/{tab}", None) for tab in ("live", "schedule", "team")]
+
+    try:
+        for article in get_articles():
+            published = article.published_at
+            urls.append(
+                (
+                    f"{base}/article/{urllib.parse.quote(article.id)}",
+                    published.date().isoformat() if published else None,
+                )
+            )
+    except Exception:
+        # A sitemap missing today's stories still beats a 500: the static
+        # routes are the ones that carry the site's ranking.
+        logger.exception("Sitemap article listing failed")
+
+    entries = []
+    for loc, lastmod in urls:
+        parts = [f"    <loc>{html.escape(loc)}</loc>"]
+        if lastmod:
+            parts.append(f"    <lastmod>{lastmod}</lastmod>")
+        entries.append("  <url>\n" + "\n".join(parts) + "\n  </url>")
+
+    body = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        + "\n".join(entries)
+        + "\n</urlset>\n"
+    )
+    return Response(body, media_type="application/xml")
 
 
 # --- Frontend ----------------------------------------------------------------
@@ -1113,6 +1168,14 @@ if FRONTEND_DIST.is_dir():
             and candidate.is_file()
         ):
             return FileResponse(candidate)
+
+        # A path with a file extension is asking for an asset, and no
+        # client-side route has one. Answering those with index.html is what
+        # made /favicon.ico return HTML: crawlers ask for it by name whether or
+        # not the document links to it, and a 200 of markup reads to them as an
+        # icon they can't parse rather than as an icon that isn't there.
+        if "." in full_path.rsplit("/", 1)[-1]:
+            raise HTTPException(status_code=404, detail="Not found")
 
         index = FRONTEND_DIST / "index.html"
         preview = _route_preview(full_path)
