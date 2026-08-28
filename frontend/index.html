@@ -83,13 +83,18 @@
          a public identifier either way — every site using this ships it in
          its markup — so the indirection would buy nothing.
 
-         SPA tracking is on by default, which is what router.ts needs: the
-         beacon wraps history.pushState and listens for popstate, and our
-         routes are real paths rather than hashes. -->
+         "spa" has to be set explicitly. Without it the beacon reports one
+         pageview per document and stops, which for this app means the four
+         tabs a visitor clicks through after landing are invisible — every
+         route here is a pushState, not a document load. With it the beacon
+         wraps history.pushState and listens for popstate, which is exactly
+         how router.ts moves; our routes are real paths, not hashes, which is
+         the case it supports. Check window.__cfBeacon.load in the console:
+         "spa" is right, "single" means this attribute got dropped. -->
     <script
-      type="module"
+      defer
       src="https://static.cloudflareinsights.com/beacon.min.js"
-      data-cf-beacon='{"token": "66b323db89864aaeb54fd7ff6adace72"}'
+      data-cf-beacon='{"token": "66b323db89864aaeb54fd7ff6adace72", "spa": true}'
     ></script>
   </body>
 </html>
