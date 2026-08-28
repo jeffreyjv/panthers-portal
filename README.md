@@ -340,9 +340,44 @@ to the OAuth client's authorized redirect URIs, alongside the localhost one.
 
 Free instances sleep after ~15 minutes idle and take about a minute to wake, and
 because the caches live in process memory they come back empty and refill from
-the upstreams. Pinging `/api/health` every 10 minutes from a free scheduler keeps
-it warm within the 750 instance-hours/month allowance. Cloud Run runs the same
-image with a much shorter cold start if that becomes annoying.
+the upstreams. A free scheduler (cron-job.org) hits **`/`** every 5 minutes to
+keep both the process and its caches warm:
+
+```
+*/5 7-23,0-2 * * *   America/New_York   GET https://panthers-portal.onrender.com/
+50 6 * * *           America/New_York   # warm-up, so 7:00 isn't spent waking
+```
+
+Three things about that schedule are load-bearing:
+
+- **Five minutes, not ten or fifteen.** Instance hours bill wall-clock time
+  awake, not requests, so a shorter interval is free. It buys headroom: sleep
+  triggers at 15 minutes of silence, and a missed run doubles the gap, so a
+  15-minute ping races the timeout on every cycle and a 10-minute one loses to
+  a single skipped run.
+- **It pings `/`, not `/api/health`.** Health calls `db.ping()`, and Neon's free
+  plan is 100 CU-hours/month against a compute that scales to zero after 5
+  minutes idle. Pinging it on this schedule would hold it awake around the
+  clock — roughly 186 CU-hours at the 0.25 CU floor — and Neon suspends
+  compute once that is spent, taking Talk down mid-month. `/` is a plain
+  `FileResponse` of `index.html`: no database, no upstream, no preview rewrite.
+- **It sleeps 03:00-07:00 and sets a timezone.** 750 instance-hours/month is
+  per *workspace*, and 24/7 would be 744 of them in a 31-day month — enough
+  margin to lose to a few redeploys, and overrunning suspends the service until
+  the next month. Twenty hours a day is 620. Leave the timezone at cron-job.org's
+  UTC default and the idle window lands at 22:00-02:00 Eastern, which is a West
+  Coast kickoff.
+
+Cloud Run runs the same image with a much shorter cold start if that becomes
+annoying, but it autoscales by default: deploy it with `--max-instances=1` or
+the per-process caches and rate limiter below quietly stop meaning anything.
+
+Traffic is measured by Cloudflare Web Analytics, a single beacon tag at the
+bottom of `frontend/index.html`. It sets no cookies, so there is no consent
+banner, and it follows client-side navigation on its own by wrapping
+`history.pushState`. Its site token sits inline in the markup on purpose — see
+the comment there. The keep-alive pings are server-side and never run the
+bundle, so they don't show up as traffic.
 
 The caches are per-process, so run **one** instance — replicas would each keep
 their own copy rather than sharing. Talk's rate limiter is per-process too, so

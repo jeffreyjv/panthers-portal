@@ -63,6 +63,7 @@
       var t = localStorage.getItem("panthers-portal-theme");
       document.documentElement.dataset.theme = t === "light" ? "light" : "dark";
     </script>
+    <link rel="preconnect" href="https://static.cloudflareinsights.com" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -73,5 +74,22 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!-- Cloudflare Web Analytics. Pageviews only, no cookies, so there is
+         nothing to consent to and no banner to show.
+
+         The token is inline rather than an environment variable because Vite
+         inlines at build time: a value set on the Render service would never
+         reach the bundle, only one passed as a Docker build arg would. It is
+         a public identifier either way — every site using this ships it in
+         its markup — so the indirection would buy nothing.
+
+         SPA tracking is on by default, which is what router.ts needs: the
+         beacon wraps history.pushState and listens for popstate, and our
+         routes are real paths rather than hashes. -->
+    <script
+      type="module"
+      src="https://static.cloudflareinsights.com/beacon.min.js"
+      data-cf-beacon='{"token": "66b323db89864aaeb54fd7ff6adace72"}'
+    ></script>
   </body>
 </html>
