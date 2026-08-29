@@ -4,6 +4,7 @@ import {
   fetchArticleContent,
   peekArticleContent,
   relativeTime,
+  sourceLabel,
 } from "./api";
 import { ClawMark } from "./ClawMark";
 import { back } from "./router";
@@ -108,7 +109,7 @@ export function Reader({ article }: { article: Article }) {
           <p>
             The full text isn’t available right now.{" "}
             <a href={article.url} target="_blank" rel="noreferrer">
-              Read it on panthers.com
+              Read it on {sourceLabel(article.source)}
             </a>
             .
           </p>
@@ -125,7 +126,7 @@ export function Reader({ article }: { article: Article }) {
           <p className="reader-source">
             Originally published on{" "}
             <a href={article.url} target="_blank" rel="noreferrer">
-              panthers.com
+              {sourceLabel(article.source)}
             </a>
           </p>
         </>

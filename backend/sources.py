@@ -8,6 +8,7 @@ entries and raw ESPN JSON never leave this file.
 """
 
 import hashlib
+import html
 import json
 import logging
 import re
@@ -197,6 +198,25 @@ class _ArticleBodyParser(HTMLParser):
             self._capture.append(data)
 
 
+def _plain_text_paragraphs(story: str) -> List[str]:
+    """Paragraphs from a body that uses blank lines, not block tags.
+
+    ESPN serves AP wire recaps as running text with only inline links, so the
+    block parser finds nothing to emit and this reads the breaks instead.
+    """
+    text = html.unescape(re.sub(r"<[^>]+>", "", story))
+
+    paragraphs = []
+    for block in re.split(r"\n\s*\n", text):
+        block = re.sub(r"\s+", " ", block).strip()
+        # A block with no letters or digits is a rule, not prose — AP ends its
+        # recaps with one above a boilerplate sign-off.
+        if block and re.search(r"[^\W_]", block):
+            paragraphs.append(block)
+
+    return paragraphs
+
+
 def fetch_article_text(url: str) -> List[str]:
     """Fetch an article page and extract its body copy as plain paragraphs."""
     request = urllib.request.Request(url, headers={"User-Agent": _BROWSER_UA})
@@ -242,6 +262,7 @@ ESPN_SOURCE = "espn.com"
 ESPN_NEWS_URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/news"
 _ESPN_TEAM_ID = 29  # Carolina, in ESPN's team numbering.
 ESPN_NEWS_LIMIT = 50
+_ESPN_VIDEO_TYPE = "Media"  # ESPN's tag for a video clip: no story body to read.
 
 
 def _espn_image(item: Dict[str, Any]) -> Optional[str]:
@@ -256,8 +277,8 @@ def _espn_image(item: Dict[str, Any]) -> Optional[str]:
 def _espn_item_to_article(item: Dict[str, Any]) -> Optional[Article]:
     """Adapter: map one ESPN news item onto the normalized Article model.
 
-    Returns None for items we can't link to, rather than failing the whole
-    feed over a single malformed entry.
+    Returns None for items we can't link to or can't read, rather than failing
+    the whole feed over a single unusable entry.
     """
     url = ((item.get("links") or {}).get("web") or {}).get("href")
     headline = item.get("headline")
@@ -269,6 +290,14 @@ def _espn_item_to_article(item: Dict[str, Any]) -> Optional[Article]:
     content_url = (
         (((item.get("links") or {}).get("api") or {}).get("self") or {}).get("href")
     )
+
+    # ESPN mixes video clips into the news feed. They carry a headline and an
+    # image like a story does, but the content API answers them with no body at
+    # all, so the reader has nothing to open. Drop them rather than list a story
+    # that can only fail. The URL check is the real test — the type is just how
+    # ESPN happens to label it today.
+    if item.get("type") == _ESPN_VIDEO_TYPE or "/video/" in (content_url or ""):
+        return None
 
     return Article(
         id=_stable_id(url),
@@ -301,8 +330,8 @@ def fetch_espn_articles(limit: int = ESPN_NEWS_LIMIT) -> List[Article]:
 def fetch_espn_article_text(content_url: str) -> List[str]:
     """Extract an ESPN story's body copy from the content API.
 
-    The story arrives as an HTML fragment of block elements with no wrapper,
-    so the parser captures from the first tag.
+    The story arrives as an HTML fragment with no wrapper, so the parser
+    captures from the first tag.
     """
     payload = _fetch_espn_json(content_url)
 
@@ -314,13 +343,16 @@ def fetch_espn_article_text(content_url: str) -> List[str]:
     parser = _ArticleBodyParser(root_class=None)
     parser.feed(story)
 
-    if not parser.paragraphs:
+    # Most stories arrive as block elements. AP wire recaps don't — they're
+    # running text with only inline links, which leaves the parser nothing to
+    # emit, so fall back to the blank lines that separate their paragraphs.
+    paragraphs = parser.paragraphs or _plain_text_paragraphs(story)
+
+    if not paragraphs:
         raise RuntimeError(f"No article body found at {content_url}")
 
-    logger.info(
-        "Extracted %d paragraphs from %s", len(parser.paragraphs), content_url
-    )
-    return parser.paragraphs
+    logger.info("Extracted %d paragraphs from %s", len(paragraphs), content_url)
+    return paragraphs
 
 
 def fetch_article_body(article: Article) -> List[str]:
